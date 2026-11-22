@@ -254,13 +254,29 @@ static NSString* frameworkPathForPath(NSString *filePath) {
 
 + (NSBundle *)bundleWithIdentifier:(NSString *)identifier
 {
+    if (identifier == nil) {
+        return nil;
+    }
+
     NSBundle *bundle = nil;
     @synchronized(bundlesByIdentifier)
     {
         bundle = [bundlesByIdentifier[identifier] retain];
-        // TODO: we should be doing some searching if the bundle is nil
     }
-    return [bundle autorelease];
+    if (bundle != nil) {
+        return [bundle autorelease];
+    }
+
+    // Dyld can load a framework before Foundation creates its NSBundle.
+    CFBundleRef cfBundle = CFBundleGetBundleWithIdentifier((CFStringRef)identifier);
+    if (cfBundle == NULL) {
+        return nil;
+    }
+
+    NSURL *url = (NSURL *)CFBundleCopyBundleURL(cfBundle);
+    bundle = url != nil ? [self bundleWithURL:url] : nil;
+    [url release];
+    return bundle;
 }
 
 + (NSArray *)allBundles
