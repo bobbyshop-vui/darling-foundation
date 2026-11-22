@@ -50,6 +50,11 @@ NSOperatingSystemVersion;
 - (NSOperatingSystemVersion)operatingSystemVersion;
 - (BOOL)isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion)version;
 
+// Activity APIs are used by newer macOS applications to bracket work that
+// should not be interrupted by system sleep or termination.
+- (id)beginActivityWithOptions:(NSUInteger)options reason:(NSString *)reason;
+- (void)endActivity:(id)activity;
+
 @end
 
 @interface NSProcessInfo (NSProcessInfoPlatform)

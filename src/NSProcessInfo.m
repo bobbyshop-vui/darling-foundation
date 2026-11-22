@@ -352,6 +352,23 @@ SINGLETON_RR()
 	}
 }
 
+- (id)beginActivityWithOptions:(NSUInteger)options reason:(NSString *)reason
+{
+    // Darling does not currently manage host sleep or process termination
+    // through NSProcessInfo activities. Return a token so callers can still
+    // use the begin/end API pair.
+    (void) options;
+    (void) reason;
+    return [[[NSObject alloc] init] autorelease];
+}
+
+- (void)endActivity:(id)activity
+{
+    // Activity tokens are placeholders until Darling implements activity
+    // management.
+    (void) activity;
+}
+
 @end
 
 @implementation NSProcessInfo (NSProcessInfoPlatform)
