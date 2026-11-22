@@ -14,7 +14,7 @@ typedef const struct __NSAppleEventManagerSuspension *NSAppleEventManagerSuspens
 
 - (OSErr)dispatchRawAppleEvent:(const AppleEvent *)theAppleEvent
                   withRawReply:(AppleEvent *)theReply
-                 handlerRefCon:(UInt32)handlerRefcon;
+                 handlerRefCon:(SRefCon)handlerRefCon;
 - (void)removeEventHandlerForEventClass:(AEEventClass)eventClass
                              andEventID:(AEEventID)eventID;
 - (NSAppleEventDescriptor *)replyAppleEventForSuspensionID:(NSAppleEventManagerSuspensionID)suspensionID;
