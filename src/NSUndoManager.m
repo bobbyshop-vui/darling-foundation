@@ -18,11 +18,13 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSArray.h>
 #import <Foundation/NSException.h>
+#import <Foundation/NSHashTable.h>
 #import <Foundation/NSInvocation.h>
 #import <Foundation/NSNotificationCenter.h>
 #import <Foundation/NSRaise.h>
 #import <Foundation/NSRunLoop.h>
 #import <Foundation/NSString.h>
+#import <Foundation/NSThread.h>
 #import <Foundation/NSUndoGroup.h>
 #import <Foundation/NSUndoManager.h>
 
@@ -47,7 +49,24 @@ NSString *const NSUndoManagerWillRedoChangeNotification =
 NSString *const NSUndoManagerDidRedoChangeNotification =
         @"NSUndoManagerDidRedoChangeNotification";
 
+static NSHashTable *mainThreadPendingUndoManagers;
+
 @implementation NSUndoManager
+
++ (void) _endTopLevelGroupings {
+    if (![NSThread isMainThread]) {
+        [NSException raise: NSInternalInconsistencyException
+                    format: @"_endTopLevelGroupings must run on the main thread"];
+    }
+
+    for (NSUndoManager *manager in [mainThreadPendingUndoManagers allObjects]) {
+        if (manager->_performRegistered && manager->_groupsByEvent &&
+            manager->_state == NSUndoManagerNormal && [manager groupingLevel] == 1) {
+            [manager _unregisterPerform];
+            [manager endUndoGrouping];
+        }
+    }
+}
 
 - (void) _registerPerform {
     if (!_performRegistered) {
@@ -58,12 +77,28 @@ NSString *const NSUndoManagerDidRedoChangeNotification =
                        argument: nil
                           order: NSUndoCloseGroupingRunLoopOrdering
                           modes: _modes];
+
+        if ([NSThread isMainThread]) {
+            if (mainThreadPendingUndoManagers == nil) {
+                mainThreadPendingUndoManagers = [[NSHashTable alloc]
+                        initWithOptions: NSPointerFunctionsWeakMemory |
+                                         NSPointerFunctionsObjectPointerPersonality
+                               capacity: 0];
+            }
+            [mainThreadPendingUndoManagers addObject: self];
+        }
     }
+}
+
+- (void) _clearPerformRegistration {
+    _performRegistered = NO;
+    if ([NSThread isMainThread])
+        [mainThreadPendingUndoManagers removeObject: self];
 }
 
 - (void) _unregisterPerform {
     if (_performRegistered) {
-        _performRegistered = NO;
+        [self _clearPerformRegistration];
         [[NSRunLoop currentRunLoop]
                 cancelPerformSelector: @selector(runLoopUndo:)
                                target: self
@@ -78,7 +113,6 @@ NSString *const NSUndoManagerDidRedoChangeNotification =
 
     [self setRunLoopModes: [NSArray arrayWithObject: NSDefaultRunLoopMode]];
     [self setGroupsByEvent: YES];
-    _performRegistered = NO;
 
     return self;
 }
@@ -220,11 +254,12 @@ NSString *const NSUndoManagerDidRedoChangeNotification =
 }
 
 - (void) runLoopUndo: (id) dummy {
-    if (_groupsByEvent == YES) {
-        if (_currentGroup != nil)
-            [self endUndoGrouping];
-        _performRegistered = NO;
-    }
+    if (!_performRegistered)
+        return;
+
+    [self _clearPerformRegistration];
+    if (_groupsByEvent && _currentGroup != nil)
+        [self endUndoGrouping];
 }
 
 - (BOOL) canUndo {
