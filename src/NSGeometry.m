@@ -161,6 +161,14 @@ BOOL NSEqualRects(NSRect aRect, NSRect bRect)
 			&& (NSHeight(aRect) == NSHeight(bRect))) ? YES : NO;
 }
 
+BOOL NSEdgeInsetsEqual(NSEdgeInsets aInsets, NSEdgeInsets bInsets)
+{
+	return aInsets.top == bInsets.top
+			&& aInsets.left == bInsets.left
+			&& aInsets.bottom == bInsets.bottom
+			&& aInsets.right == bInsets.right;
+}
+
 /** Returns 'YES' iff aSize's and bSize's width and height are the same. */
 BOOL NSEqualSizes(NSSize aSize, NSSize bSize)
 {
