@@ -86,8 +86,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSArray *) namespaces {
-    NSUnimplementedMethod();
-    return 0;
+    return [_namespaces allValues];
 }
 
 - (NSXMLNode *) namespaceForPrefix: (NSString *) prefix {

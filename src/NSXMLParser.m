@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <Foundation/NSAutoreleasePool.h>
 #import <Foundation/NSData.h>
+#import <Foundation/NSError.h>
 #import <Foundation/NSMutableArray.h>
 #import <Foundation/NSMutableDictionary.h>
 #import <Foundation/NSRaise.h>
@@ -87,6 +88,7 @@ enum {
     [_entityRefContents release];
     [_elementNameStack release];
     [_currentAttributes release];
+    [_parserError release];
     [super dealloc];
 }
 
@@ -249,10 +251,15 @@ static inline BOOL codeIsNameContinue(uint8_t code) {
 }
 
 - (BOOL) parse {
+    if (_parserError != nil)
+        return NO;
+
     int createNewPool = 0;
     NSAutoreleasePool *pool = nil;
 
     while (NSMaxRange(_range) < _length) {
+        if (_parserError != nil)
+            break;
 
         if (pool == nil)
             pool = [NSAutoreleasePool new];
@@ -558,11 +565,24 @@ static inline BOOL codeIsNameContinue(uint8_t code) {
             pool = nil;
         }
     }
-    return YES;
+    [pool release];
+    return _parserError == nil;
 }
 
 - (void) abortParsing {
-    NSUnimplementedMethod();
+    if (_parserError != nil)
+        return;
+
+    NSDictionary *userInfo = [NSDictionary
+            dictionaryWithObject: @"The XML parsing operation was aborted."
+                          forKey: NSLocalizedDescriptionKey];
+    _parserError = [[NSError errorWithDomain: @"NSXMLParserErrorDomain"
+                                        code: 512
+                                    userInfo: userInfo] retain];
+
+    if ([_delegate respondsToSelector:
+                  @selector(parser:parseErrorOccurred:)])
+        [_delegate parser: self parseErrorOccurred: _parserError];
 }
 
 - (NSError *) parserError {

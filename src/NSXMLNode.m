@@ -19,10 +19,130 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <Foundation/NSArray.h>
 #import <Foundation/NSRaise.h>
+#import <Foundation/NSString.h>
 #import <Foundation/NSXMLDTDNode.h>
 #import <Foundation/NSXMLDocument.h>
 #import <Foundation/NSXMLElement.h>
 #import <Foundation/NSXMLNode.h>
+
+static NSString *stringByResolvingXMLEntities(NSString *string) {
+    if (string == nil)
+        return nil;
+    NSMutableString *result = [NSMutableString stringWithCapacity: [string length]];
+    NSUInteger length = [string length];
+    NSUInteger index = 0;
+
+    while (index < length) {
+        if ([string characterAtIndex: index] != '&') {
+            [result appendString: [string substringWithRange: NSMakeRange(index, 1)]];
+            index++;
+            continue;
+        }
+
+        NSUInteger end = index + 1;
+        while (end < length && [string characterAtIndex: end] != ';')
+            end++;
+        if (end == length) {
+            [result appendString: @"&"];
+            index++;
+            continue;
+        }
+
+        NSString *entity = [string substringWithRange:
+                NSMakeRange(index + 1, end - index - 1)];
+        NSString *replacement = nil;
+        if ([entity isEqualToString: @"amp"])
+            replacement = @"&";
+        else if ([entity isEqualToString: @"lt"])
+            replacement = @"<";
+        else if ([entity isEqualToString: @"gt"])
+            replacement = @">";
+        else if ([entity isEqualToString: @"quot"])
+            replacement = @"\"";
+        else if ([entity isEqualToString: @"apos"])
+            replacement = @"'";
+        else if ([entity hasPrefix: @"#"]) {
+            NSUInteger position = 1;
+            NSUInteger base = 10;
+            NSUInteger codePoint = 0;
+            BOOL valid = YES;
+
+            if (position < [entity length] &&
+                ([entity characterAtIndex: position] == 'x' ||
+                 [entity characterAtIndex: position] == 'X')) {
+                base = 16;
+                position++;
+            }
+            if (position == [entity length])
+                valid = NO;
+            for (; valid && position < [entity length]; position++) {
+                unichar digit = [entity characterAtIndex: position];
+                NSUInteger value;
+                if (digit >= '0' && digit <= '9')
+                    value = digit - '0';
+                else if (base == 16 && digit >= 'a' && digit <= 'f')
+                    value = digit - 'a' + 10;
+                else if (base == 16 && digit >= 'A' && digit <= 'F')
+                    value = digit - 'A' + 10;
+                else {
+                    valid = NO;
+                    break;
+                }
+                if (value >= base || codePoint > (0x10ffff - value) / base) {
+                    valid = NO;
+                    break;
+                }
+                codePoint = codePoint * base + value;
+            }
+
+            if (valid && codePoint != 0 && codePoint <= 0x10ffff &&
+                !(codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+                unichar characters[2];
+                NSUInteger characterCount;
+                if (codePoint <= 0xffff) {
+                    characters[0] = (unichar) codePoint;
+                    characterCount = 1;
+                } else {
+                    codePoint -= 0x10000;
+                    characters[0] = (unichar) (0xd800 + (codePoint >> 10));
+                    characters[1] = (unichar) (0xdc00 + (codePoint & 0x3ff));
+                    characterCount = 2;
+                }
+                replacement = [NSString stringWithCharacters: characters
+                                                       length: characterCount];
+            }
+        }
+
+        if (replacement != nil)
+            [result appendString: replacement];
+        else
+            [result appendString: [string substringWithRange:
+                    NSMakeRange(index, end - index + 1)]];
+        index = end + 1;
+    }
+
+    return result;
+}
+
+static NSString *XPathNodeTest(NSXMLNode *node) {
+    switch ([node kind]) {
+    case NSXMLElementKind:
+        return [node name] != nil ? [node name] : @"*";
+    case NSXMLTextKind:
+        return @"text()";
+    case NSXMLCommentKind:
+        return @"comment()";
+    case NSXMLProcessingInstructionKind:
+        return [node name] != nil
+                       ? [NSString stringWithFormat: @"processing-instruction('%@')",
+                                                    [node name]]
+                       : @"processing-instruction()";
+    case NSXMLAttributeKind:
+        return [NSString stringWithFormat: @"@%@", [node name]];
+    default:
+        return [node name] != nil ? [node name] : @"node()";
+    }
+}
 
 @implementation NSXMLNode
 
@@ -125,8 +245,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 + (NSString *) prefixForName: (NSString *) name {
-    NSUnimplementedMethod();
-    return nil;
+    NSRange colon = [name rangeOfString: @":"];
+    if (colon.location == NSNotFound || colon.location == 0)
+        return nil;
+    return [name substringToIndex: colon.location];
 }
 
 + (NSString *) localNameForName: (NSString *) name {
@@ -178,13 +300,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSUInteger) level {
-    NSUnimplementedMethod();
-    return 0;
+    NSUInteger result = 0;
+    NSXMLNode *ancestor = _parent;
+    while (ancestor != nil) {
+        result++;
+        ancestor = [ancestor parent];
+    }
+    return result;
 }
 
 - (NSString *) localName {
-    NSUnimplementedMethod();
-    return nil;
+    NSRange colon = [_name rangeOfString: @":"];
+    if (colon.location == NSNotFound)
+        return _name;
+    return [_name substringFromIndex: NSMaxRange(colon)];
 }
 
 - (NSString *) name {
@@ -192,13 +321,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSXMLNode *) nextNode {
-    NSUnimplementedMethod();
+    if ([_children count] != 0)
+        return [_children objectAtIndex: 0];
+
+    NSXMLNode *node = self;
+    while (node->_parent != nil) {
+        NSXMLNode *parent = node->_parent;
+        NSUInteger index = [parent->_children indexOfObjectIdenticalTo: node];
+        if (index != NSNotFound && index + 1 < [parent->_children count])
+            return [parent->_children objectAtIndex: index + 1];
+        node = parent;
+    }
     return nil;
 }
 
 - (NSXMLNode *) nextSibling {
-    NSUnimplementedMethod();
-    return nil;
+    if (_parent == nil)
+        return nil;
+    NSUInteger index = [_parent->_children indexOfObjectIdenticalTo: self];
+    if (index == NSNotFound || index + 1 >= [_parent->_children count])
+        return nil;
+    return [_parent->_children objectAtIndex: index + 1];
 }
 
 - (NSString *) stringValue {
@@ -218,8 +361,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSString *) prefix {
-    NSUnimplementedMethod();
-    return nil;
+    return [[self class] prefixForName: _name];
 }
 
 - (NSXMLNode *) previousNode {
@@ -228,8 +370,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSXMLNode *) previousSibling {
-    NSUnimplementedMethod();
-    return nil;
+    if (_parent == nil)
+        return nil;
+    NSUInteger index = [_parent->_children indexOfObjectIdenticalTo: self];
+    if (index == NSNotFound || index == 0)
+        return nil;
+    return [_parent->_children objectAtIndex: index - 1];
 }
 
 - (NSXMLDocument *) rootDocument {
@@ -276,7 +422,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) setStringValue: (NSString *) string
         resolvingEntities: (BOOL) resolveEntities
 {
-    NSUnimplementedMethod();
+    [self setStringValue: resolveEntities
+                           ? stringByResolvingXMLEntities(string)
+                           : string];
 }
 
 - (void) detach {
@@ -390,8 +538,35 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSString *) XPath {
-    NSUnimplementedMethod();
-    return nil;
+    if (_kind == NSXMLDocumentKind)
+        return nil;
+
+    NSMutableArray *components = [NSMutableArray array];
+    NSXMLNode *node = self;
+    while (node != nil && [node kind] != NSXMLDocumentKind) {
+        NSString *test = XPathNodeTest(node);
+        NSUInteger sameTypeCount = 0;
+        NSUInteger matchingIndex = 0;
+        NSArray *siblings = [[node parent] children];
+
+        for (NSXMLNode *sibling in siblings) {
+            if ([XPathNodeTest(sibling) isEqualToString: test]) {
+                sameTypeCount++;
+                if (sibling == node)
+                    matchingIndex = sameTypeCount;
+            }
+        }
+
+        if (sameTypeCount > 1 && matchingIndex != 0)
+            test = [test stringByAppendingFormat: @"[%lu]",
+                                                  (unsigned long) matchingIndex];
+        [components insertObject: test atIndex: 0];
+        node = [node parent];
+    }
+
+    return [components count] != 0
+                   ? [components componentsJoinedByString: @"/"]
+                   : nil;
 }
 
 - (NSString *) canonicalXMLStringPreservingComments: (BOOL) comments {
