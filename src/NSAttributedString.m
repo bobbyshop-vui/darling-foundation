@@ -10,6 +10,9 @@
 #import "NSStringInternal.h"
 #import <Foundation/NSPortCoder.h>
 #import <Foundation/NSData.h>
+#import <Foundation/NSCoder.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSDictionary.h>
 #import <Foundation/NSError.h>
 #import <dispatch/dispatch.h>
 
@@ -313,6 +316,27 @@ OBJC_PROTOCOL_IMPL_POP
     return [NSAttributedString self];
 }
 
+- (void)encodeWithCoder:(NSCoder *)coder
+{
+    NSString *string = [self string];
+    NSRange range = NSMakeRange(0, 0);
+    NSDictionary *attributes = [string length] > 0 ? [self attributesAtIndex:0 effectiveRange:&range] : [NSDictionary dictionary];
+    if ([string length] > 0 && range.length != [string length])
+    {
+        [NSException raise:NSInvalidArgumentException format:@"-[NSAttributedString encodeWithCoder:]: strings with several attribute runs are not supported"];
+    }
+    if ([coder allowsKeyedCoding])
+    {
+        [coder encodeObject:string forKey:@"NSString"];
+        [coder encodeObject:attributes forKey:@"NSAttributes"];
+    }
+    else
+    {
+        [coder encodeObject:string];
+        [coder encodeObject:attributes];
+    }
+}
+
 - (NSUInteger)length
 {
     return [[self string] length];
@@ -530,6 +554,35 @@ static __NSPlaceholderAttributedString *mutablePlaceholder = nil;
     CFAttributedStringRef string = CFAttributedStringCreate(kCFAllocatorDefault, (CFStringRef)str, (CFDictionaryRef)attrs);
     _CFAttributedStringSetMutable(string, self == mutablePlaceholder);
     return (id)string;
+}
+
+// Compiled nibs archive an attributed string as its string plus one attributes dictionary
+// ("NSAttributes"). Strings with several runs store an array of dictionaries and a packed
+// "NSAttributeInfo" run table; that table is not decoded, so such a string takes the first
+// dictionary for its whole length.
+- (id)initWithCoder:(NSCoder *)coder
+{
+    NSString *string = nil;
+    id attributes = nil;
+    if ([coder allowsKeyedCoding])
+    {
+        string = [coder decodeObjectForKey:@"NSString"];
+        attributes = [coder decodeObjectForKey:@"NSAttributes"];
+    }
+    else
+    {
+        string = [coder decodeObject];
+        attributes = [coder decodeObject];
+    }
+    if ([attributes isKindOfClass:[NSArray class]])
+    {
+        attributes = [(NSArray *)attributes count] > 0 ? [(NSArray *)attributes objectAtIndex:0] : nil;
+    }
+    if (![attributes isKindOfClass:[NSDictionary class]])
+    {
+        attributes = [NSDictionary dictionary];
+    }
+    return [self initWithString:(string != nil ? string : @"") attributes:attributes];
 }
 
 - (id)initWithAttributedString:(NSAttributedString *)attrStr

@@ -29,7 +29,7 @@ enum {
 
 typedef float NSLayoutPriority;
 
-@interface NSLayoutConstraint : NSObject
+@interface NSLayoutConstraint : NSObject <NSCoding>
 {
 @private
     id _firstItem;
