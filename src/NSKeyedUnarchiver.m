@@ -585,7 +585,14 @@ static id _decodeObjectBinary(NSKeyedUnarchiver *unarchiver, NSUInteger uid1) NS
         {
             instance = [instance awakeAfterUsingCoder:unarchiver];
 
-            NSCAssert(instance != nil, @"object was replaced as nil from awakeAfterUsingCoder:");
+            if (instance == nil) {
+                // A coder is allowed to drop an object; Interface Builder relies
+                // on this for resources it does not understand.  Asserting here
+                // aborted nib loading, so fall back to what we allocated.
+                NSLog(@"Warning: %@ returned nil from awakeAfterUsingCoder:; keeping the original object",
+                      NSStringFromClass([allocated class]));
+                instance = allocated;
+            }
 
             id delegateRes = [unarchiver->_delegate unarchiver: unarchiver didDecodeObject: instance];
             if (delegateRes != nil)
@@ -727,7 +734,11 @@ static id _decodeObjectXML(NSKeyedUnarchiver *unarchiver, NSString *key)
     if (instance != nil)
     {
         instance = [instance awakeAfterUsingCoder:unarchiver];
-        NSCAssert(instance != nil, @"object was replaced as nil from awakeAfterUsingCoder:");
+        if (instance == nil) {
+            NSLog(@"Warning: %@ returned nil from awakeAfterUsingCoder:; keeping the original object",
+                  NSStringFromClass([allocated class]));
+            instance = allocated;
+        }
         deleteLastContainer(unarchiver->_containers);
 
     #warning TODO flag update for arrays?   https://code.google.com/p/apportable/issues/detail?id=153
