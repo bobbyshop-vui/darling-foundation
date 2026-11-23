@@ -29,6 +29,7 @@ FOUNDATION_EXPORT NSString *const NSUndoManagerCheckpointNotification;
 
 FOUNDATION_EXPORT NSString *const NSUndoManagerDidOpenUndoGroupNotification;
 FOUNDATION_EXPORT NSString *const NSUndoManagerWillCloseUndoGroupNotification;
+FOUNDATION_EXPORT NSString *const NSUndoManagerDidCloseUndoGroupNotification;
 
 FOUNDATION_EXPORT NSString *const NSUndoManagerWillUndoChangeNotification;
 FOUNDATION_EXPORT NSString *const NSUndoManagerDidUndoChangeNotification;

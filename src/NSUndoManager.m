@@ -40,6 +40,8 @@ NSString *const NSUndoManagerDidOpenUndoGroupNotification =
         @"NSUndoManagerDidOpenUndoGroupNotification";
 NSString *const NSUndoManagerWillCloseUndoGroupNotification =
         @"NSUndoManagerWillCloseUndoGroupNotification";
+NSString *const NSUndoManagerDidCloseUndoGroupNotification =
+        @"NSUndoManagerDidCloseUndoGroupNotification";
 NSString *const NSUndoManagerWillUndoChangeNotification =
         @"NSUndoManagerWillUndoChangeNotification";
 NSString *const NSUndoManagerDidUndoChangeNotification =

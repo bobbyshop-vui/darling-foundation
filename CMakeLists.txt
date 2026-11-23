@@ -247,6 +247,7 @@ set(foundation_sources
 	src/NSLayoutAnchor.m
 	src/NSLayoutConstraint.m
 	src/NSExtensionContext.m
+	src/_NSExtensionContextVendor.m
 	src/NSISO8601DateFormatter.m
 	src/NSScriptObjectSpecifiers.m
 	src/NSScriptCoercionHandler.m
