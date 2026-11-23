@@ -226,3 +226,29 @@
 }
 
 @end
+
+// NSAnimatablePropertyContainer.  AppKit's layout classes declare it; Xcode
+// animates window and constraint changes through -animator.  Darling has no
+// animation, so the animator is the constraint itself and nothing is implicit.
+@implementation NSLayoutConstraint (DarlingAnimatable)
+
+- (id) animator {
+    return self;
+}
+
+- (id) animationForKey: (NSString *) key {
+    return nil;
+}
+
++ (id) defaultAnimationForKey: (NSString *) key {
+    return nil;
+}
+
+- (NSDictionary *) animations {
+    return [NSDictionary dictionary];
+}
+
+- (void) setAnimations: (NSDictionary *) animations {
+}
+
+@end
