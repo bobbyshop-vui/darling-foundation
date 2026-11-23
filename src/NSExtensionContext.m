@@ -20,6 +20,7 @@
 #import <Foundation/NSExtensionContext.h>
 #import <Foundation/NSMethodSignature.h>
 #import <Foundation/NSInvocation.h>
+#import <Foundation/NSError.h>
 
 NSString * const NSExtensionItemsAndErrorsKey = @"NSExtensionItemsAndErrorsKey";
 
@@ -28,6 +29,23 @@ NSString * const NSExtensionPointName = @"NSExtensionPointName";
 /* End undocumented */
 
 @implementation NSExtensionContext
+
+// There is no extension host to deliver the cancellation to, so the error is retained
+// for the lifetime of the context.
+- (void)cancelRequestWithError:(NSError *)error
+{
+    if (error != _extensionCancellationError)
+    {
+        [_extensionCancellationError release];
+        _extensionCancellationError = [error retain];
+    }
+}
+
+- (void)dealloc
+{
+    [_extensionCancellationError release];
+    [super dealloc];
+}
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
     return [NSMethodSignature signatureWithObjCTypes: "v@:"];

@@ -23,10 +23,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSNotificationCenter.h>
 #import <Foundation/NSRaise.h>
 #import <Foundation/NSRunLoop.h>
+#import <Foundation/NSSet.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSThread.h>
 #import <Foundation/NSUndoGroup.h>
 #import <Foundation/NSUndoManager.h>
+#import <Foundation/NSValue.h>
+#import <Block.h>
 
 enum _NSUndoManagerState {
     NSUndoManagerNormal,
@@ -52,6 +55,47 @@ NSString *const NSUndoManagerDidRedoChangeNotification =
         @"NSUndoManagerDidRedoChangeNotification";
 
 static NSHashTable *mainThreadPendingUndoManagers;
+
+@interface _NSUndoManagerBlockAction : NSObject {
+    id _target;
+    void (^_handler)(id);
+}
+- (id)initWithTarget:(id)target handler:(void (^)(id))handler;
+- (void)invokeUndoHandler;
+@end
+
+@implementation _NSUndoManagerBlockAction
+- (id)initWithTarget:(id)target handler:(void (^)(id))handler
+{
+    self = [super init];
+    if (self) {
+        _target = target;
+        _handler = Block_copy(handler);
+    }
+    return self;
+}
+
+- (void)invokeUndoHandler
+{
+    if (_handler != nil)
+        _handler(_target);
+}
+
+- (void)dealloc
+{
+    if (_handler != nil)
+        Block_release(_handler);
+    [super dealloc];
+}
+@end
+
+@interface NSUndoManager (Discardability)
+- (void)_removeDiscardableInvocationsInGroup:(NSUndoGroup *)group;
+- (void)_removeDiscardableInvocationsInGroup:(NSUndoGroup *)group target:(id)target;
+- (void)_removeDiscardableInvocationsInGroups:(NSArray *)groups;
+- (void)_setDiscardableInvocationsInGroup:(NSUndoGroup *)group discardable:(BOOL)discardable;
+- (BOOL)_isDiscardableGroup:(NSUndoGroup *)group;
+@end
 
 @implementation NSUndoManager
 
@@ -111,6 +155,7 @@ static NSHashTable *mainThreadPendingUndoManagers;
 - (id) init {
     _undoStack = [[NSMutableArray alloc] init];
     _redoStack = [[NSMutableArray alloc] init];
+    _discardableInvocations = [[NSMutableSet alloc] init];
     _state = NSUndoManagerNormal;
 
     [self setRunLoopModes: [NSArray arrayWithObject: NSDefaultRunLoopMode]];
@@ -124,11 +169,56 @@ static NSHashTable *mainThreadPendingUndoManagers;
 
     [_undoStack release];
     [_redoStack release];
+    [_discardableInvocations release];
     [_currentGroup release];
     [_modes release];
     [_actionName release];
 
     [super dealloc];
+}
+
+- (void)_removeDiscardableInvocationsInGroup:(NSUndoGroup *)group
+{
+    for (NSInvocation *invocation in [group invocations])
+        [_discardableInvocations removeObject:[NSValue valueWithPointer:invocation]];
+}
+
+- (void)_removeDiscardableInvocationsInGroup:(NSUndoGroup *)group target:(id)target
+{
+    for (NSInvocation *invocation in [group invocations]) {
+        if ([invocation target] == target)
+            [_discardableInvocations removeObject:[NSValue valueWithPointer:invocation]];
+    }
+}
+
+- (void)_removeDiscardableInvocationsInGroups:(NSArray *)groups
+{
+    for (NSUndoGroup *group in groups)
+        [self _removeDiscardableInvocationsInGroup:group];
+}
+
+- (void)_setDiscardableInvocationsInGroup:(NSUndoGroup *)group discardable:(BOOL)discardable
+{
+    for (NSInvocation *invocation in [group invocations]) {
+        NSValue *key = [NSValue valueWithPointer:invocation];
+        if (discardable)
+            [_discardableInvocations addObject:key];
+        else
+            [_discardableInvocations removeObject:key];
+    }
+}
+
+- (BOOL)_isDiscardableGroup:(NSUndoGroup *)group
+{
+    NSArray *invocations = [group invocations];
+    if ([invocations count] == 0)
+        return NO;
+
+    for (NSInvocation *invocation in invocations) {
+        if (![_discardableInvocations containsObject:[NSValue valueWithPointer:invocation]])
+            return NO;
+    }
+    return YES;
 }
 
 - (NSArray *) runLoopModes {
@@ -153,10 +243,14 @@ static NSHashTable *mainThreadPendingUndoManagers;
 
 - (void) setLevelsOfUndo: (NSUInteger) levels {
     _levelsOfUndo = levels;
-    while ([_undoStack count] > _levelsOfUndo)
+    while ([_undoStack count] > _levelsOfUndo) {
+        [self _removeDiscardableInvocationsInGroup:[_undoStack objectAtIndex:0]];
         [_undoStack removeObjectAtIndex: 0];
-    while ([_redoStack count] > _levelsOfUndo)
+    }
+    while ([_redoStack count] > _levelsOfUndo) {
+        [self _removeDiscardableInvocationsInGroup:[_redoStack objectAtIndex:0]];
         [_redoStack removeObjectAtIndex: 0];
+    }
 }
 
 - (void) setGroupsByEvent: (BOOL) flag {
@@ -276,6 +370,7 @@ static NSHashTable *mainThreadPendingUndoManagers;
 
 - (void) undoNestedGroup {
     NSUndoGroup *undoGroup;
+    BOOL wasDiscardable;
 
     if (_currentGroup != nil)
         [NSException raise: NSInternalInconsistencyException
@@ -292,8 +387,12 @@ static NSHashTable *mainThreadPendingUndoManagers;
     _state = NSUndoManagerUndoing;
     undoGroup = [[_undoStack lastObject] retain];
     [_undoStack removeLastObject];
+    wasDiscardable = [self _isDiscardableGroup:undoGroup];
+    [self _removeDiscardableInvocationsInGroup:undoGroup];
     [self beginUndoGrouping];
     [undoGroup invokeInvocations];
+    if (wasDiscardable)
+        [self _setDiscardableInvocationsInGroup:_currentGroup discardable:YES];
     [self endUndoGrouping];
     [undoGroup release];
     _state = NSUndoManagerNormal;
@@ -323,6 +422,7 @@ static NSHashTable *mainThreadPendingUndoManagers;
 
 - (void) redo {
     NSUndoGroup *undoGroup;
+    BOOL wasDiscardable;
 
     if (_state == NSUndoManagerUndoing)
         [NSException raise: NSInternalInconsistencyException
@@ -339,8 +439,12 @@ static NSHashTable *mainThreadPendingUndoManagers;
     _state = NSUndoManagerRedoing;
     undoGroup = [[_redoStack lastObject] retain];
     [_redoStack removeLastObject];
+    wasDiscardable = [self _isDiscardableGroup:undoGroup];
+    [self _removeDiscardableInvocationsInGroup:undoGroup];
     [self beginUndoGrouping];
     [undoGroup invokeInvocations];
+    if (wasDiscardable)
+        [self _setDiscardableInvocationsInGroup:_currentGroup discardable:YES];
     [self endUndoGrouping];
     [undoGroup release];
     _state = NSUndoManagerNormal;
@@ -384,13 +488,76 @@ static NSHashTable *mainThreadPendingUndoManagers;
 
     [_currentGroup addInvocation: invocation];
 
-    if (_state == NSUndoManagerNormal)
+    if (_state == NSUndoManagerNormal) {
+        [self _removeDiscardableInvocationsInGroups:_redoStack];
         [_redoStack removeAllObjects];
+    }
+}
+
+- (void)registerUndoWithTarget:(id)target handler:(void (^)(id))undoHandler
+{
+    if (_disableCount > 0)
+        return;
+    if (target == nil || undoHandler == nil)
+        [NSException raise:NSInvalidArgumentException format:@"Undo target and handler must not be nil"];
+
+    if (_groupsByEvent && _currentGroup == nil) {
+        [self _registerPerform];
+        [self beginUndoGrouping];
+    }
+    if (_currentGroup == nil)
+        [NSException raise:NSInternalInconsistencyException
+                    format:@"registerUndoWithTarget:handler: called without an open undo group"];
+
+    _NSUndoManagerBlockAction *action = [[_NSUndoManagerBlockAction alloc] initWithTarget:target handler:undoHandler];
+    NSMethodSignature *signature = [action methodSignatureForSelector:@selector(invokeUndoHandler)];
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+    [invocation setTarget:action];
+    [invocation setSelector:@selector(invokeUndoHandler)];
+    [invocation retainArguments];
+    [_currentGroup addInvocation:invocation];
+    [action release];
+
+    if (_state == NSUndoManagerNormal) {
+        [self _removeDiscardableInvocationsInGroups:_redoStack];
+        [_redoStack removeAllObjects];
+    }
+}
+
+- (void)setActionIsDiscardable:(BOOL)discardable
+{
+    NSUndoGroup *group = _currentGroup;
+    if ([group invocations] == nil || [[group invocations] count] == 0)
+        group = [_undoStack lastObject];
+    NSInvocation *invocation = [[group invocations] lastObject];
+    if (invocation == nil)
+        return;
+
+    NSValue *key = [NSValue valueWithPointer:invocation];
+    if (discardable)
+        [_discardableInvocations addObject:key];
+    else
+        [_discardableInvocations removeObject:key];
+}
+
+- (BOOL)undoActionIsDiscardable
+{
+    NSUndoGroup *group = [[_currentGroup invocations] count] > 0
+        ? _currentGroup
+        : [_undoStack lastObject];
+    return [self _isDiscardableGroup:group];
+}
+
+- (BOOL)redoActionIsDiscardable
+{
+    return [self _isDiscardableGroup:[_redoStack lastObject]];
 }
 
 - (void) removeAllActions {
     [_undoStack removeAllObjects];
     [_redoStack removeAllObjects];
+    [self _removeDiscardableInvocationsInGroup:_currentGroup];
+    [_discardableInvocations removeAllObjects];
     _disableCount = 0;
 }
 
@@ -398,11 +565,13 @@ static NSHashTable *mainThreadPendingUndoManagers;
     NSUndoGroup *undoGroup;
     int i;
 
+    [self _removeDiscardableInvocationsInGroup:_currentGroup target:target];
     [_currentGroup removeInvocationsWithTarget: target];
 
     for (i = 0; i < [_undoStack count]; ++i) {
         undoGroup = [_undoStack objectAtIndex: i];
 
+        [self _removeDiscardableInvocationsInGroup:undoGroup target:target];
         [undoGroup removeInvocationsWithTarget: target];
         if ([[undoGroup invocations] count] == 0)
             [_undoStack removeObject: undoGroup];
@@ -410,6 +579,7 @@ static NSHashTable *mainThreadPendingUndoManagers;
     for (i = 0; i < [_redoStack count]; ++i) {
         undoGroup = [_redoStack objectAtIndex: i];
 
+        [self _removeDiscardableInvocationsInGroup:undoGroup target:target];
         [undoGroup removeInvocationsWithTarget: target];
         if ([[undoGroup invocations] count] == 0)
             [_redoStack removeObject: undoGroup];
@@ -449,8 +619,10 @@ static NSHashTable *mainThreadPendingUndoManagers;
     [_currentGroup addInvocation: invocation];
     [invocation retainArguments];
 
-    if (_state == NSUndoManagerNormal)
+    if (_state == NSUndoManagerNormal) {
+        [self _removeDiscardableInvocationsInGroups:_redoStack];
         [_redoStack removeAllObjects];
+    }
 
     [_preparedTarget release];
     _preparedTarget = nil;

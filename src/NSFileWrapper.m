@@ -16,6 +16,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #import <Foundation/NSData.h>
 #import <Foundation/NSDate.h>
 #import <Foundation/NSException.h>
+#import <Foundation/NSURL.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSCoder.h>
+#import <Foundation/NSKeyedArchiver.h>
+#import <Foundation/NSKeyedUnarchiver.h>
+
+enum {
+	NSFileWrapperKindRegularFile = 0,
+	NSFileWrapperKindDirectory = 1,
+	NSFileWrapperKindSymbolicLink = 2
+};
 
 @interface NSFileWrapperFile : NSFileWrapper {
 	NSData* contentData;
@@ -124,6 +135,129 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - (id) initSymbolicLinkWithDestination: (NSString*) path
 {
 	return [[NSFileWrapperLink alloc] initSymbolicLinkWithDestination: path];
+}
+
+- (id) initSymbolicLinkWithDestinationURL: (NSURL*) url
+{
+	return [self initSymbolicLinkWithDestination: [url path]];
+}
+
+- (NSURL*) symbolicLinkDestinationURL
+{
+	NSString* destination = [self symbolicLinkDestination];
+	return destination ? [NSURL fileURLWithPath: destination] : nil;
+}
+
+- (NSString*) addRegularFileWithContents: (NSData*) data preferredFilename: (NSString*) fileName
+{
+	NSFileWrapper* child = [[[NSFileWrapper class] alloc] initRegularFileWithContents: data];
+	[child setPreferredFilename: fileName];
+	NSString* key = [self addFileWrapper: child];
+	[child release];
+	return key;
+}
+
+- (id) icon
+{
+	return _icon;
+}
+
+- (void) setIcon: (id) icon
+{
+	if (icon != _icon) {
+		[_icon autorelease];
+		_icon = [icon retain];
+	}
+}
+
+- (void) encodeWithCoder: (NSCoder*) coder
+{
+	NSInteger kind;
+	if ([self isDirectory]) {
+		kind = NSFileWrapperKindDirectory;
+		[coder encodeObject: [self fileWrappers] forKey: @"NSFileWrapperChildren"];
+	} else if ([self isSymbolicLink]) {
+		kind = NSFileWrapperKindSymbolicLink;
+		[coder encodeObject: [self symbolicLinkDestination] forKey: @"NSFileWrapperLinkDestination"];
+	} else {
+		kind = NSFileWrapperKindRegularFile;
+		[coder encodeObject: [self regularFileContents] forKey: @"NSFileWrapperContents"];
+	}
+	[coder encodeInteger: kind forKey: @"NSFileWrapperKind"];
+	[coder encodeObject: _preferredFilename forKey: @"NSFileWrapperPreferredFilename"];
+	[coder encodeObject: _filename forKey: @"NSFileWrapperFilename"];
+	[coder encodeObject: _fileAttributes forKey: @"NSFileWrapperAttributes"];
+}
+
+- (id) initWithCoder: (NSCoder*) coder
+{
+	if (![coder allowsKeyedCoding]) {
+		[NSException raise: NSInvalidArgumentException format: @"NSFileWrapper can only be decoded by keyed coders"];
+		return nil;
+	}
+
+	NSInteger kind = [coder decodeIntegerForKey: @"NSFileWrapperKind"];
+	NSFileWrapper* wrapper = nil;
+	switch (kind) {
+		case NSFileWrapperKindDirectory: {
+			NSSet* classes = [NSSet setWithObjects: [NSDictionary class], [NSString class], [NSFileWrapper class], nil];
+			NSDictionary* children = [coder decodeObjectOfClasses: classes forKey: @"NSFileWrapperChildren"];
+			wrapper = [[[NSFileWrapper class] alloc] initDirectoryWithFileWrappers: children];
+			break;
+		}
+		case NSFileWrapperKindSymbolicLink: {
+			NSString* destination = [coder decodeObjectOfClass: [NSString class] forKey: @"NSFileWrapperLinkDestination"];
+			wrapper = [[[NSFileWrapper class] alloc] initSymbolicLinkWithDestination: destination];
+			break;
+		}
+		case NSFileWrapperKindRegularFile: {
+			NSData* contents = [coder decodeObjectOfClass: [NSData class] forKey: @"NSFileWrapperContents"];
+			wrapper = [[[NSFileWrapper class] alloc] initRegularFileWithContents: contents];
+			break;
+		}
+		default:
+			break;
+	}
+
+	// The base class instance is a shared placeholder that must not be released.
+	if ([self class] != [NSFileWrapper class]) {
+		[self release];
+	}
+	if (wrapper == nil) {
+		return nil;
+	}
+
+	NSString* preferred = [coder decodeObjectOfClass: [NSString class] forKey: @"NSFileWrapperPreferredFilename"];
+	if ([preferred length]) {
+		[wrapper setPreferredFilename: preferred];
+	}
+	NSString* filename = [coder decodeObjectOfClass: [NSString class] forKey: @"NSFileWrapperFilename"];
+	if ([filename length]) {
+		[wrapper setFilename: filename];
+	}
+	NSSet* attrClasses = [NSSet setWithObjects: [NSDictionary class], [NSString class], [NSNumber class], [NSDate class], nil];
+	NSDictionary* attributes = [coder decodeObjectOfClasses: attrClasses forKey: @"NSFileWrapperAttributes"];
+	if (attributes) {
+		[wrapper setFileAttributes: attributes];
+	}
+	return wrapper;
+}
+
+- (NSData*) serializedRepresentation
+{
+	return [NSKeyedArchiver archivedDataWithRootObject: self];
+}
+
+- (id) initWithSerializedRepresentation: (NSData*) data
+{
+	if ([data length] == 0) {
+		return nil;
+	}
+	id wrapper = [NSKeyedUnarchiver unarchiveObjectWithData: data];
+	if (![wrapper isKindOfClass: [NSFileWrapper class]]) {
+		return nil;
+	}
+	return [wrapper retain];
 }
 
 - (NSString *)filename

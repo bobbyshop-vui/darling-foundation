@@ -20,6 +20,10 @@
 #import <Foundation/NSMetadata.h>
 #import <Foundation/NSMethodSignature.h>
 #import <Foundation/NSInvocation.h>
+#import <Foundation/NSURL.h>
+#import <Foundation/NSOperation.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSDictionary.h>
 
 NSString * const NSMetadataQueryDidStartGatheringNotification = @"NSMetadataQueryDidStartGatheringNotification";
 NSString * const NSMetadataQueryGatheringProgressNotification = @"NSMetadataQueryGatheringProgressNotification";
@@ -47,6 +51,12 @@ NSString * const NSMetadataQueryLocalComputerScope = @"kMDQueryScopeComputer";
 
 @implementation NSMetadataQuery
 
+- (void)dealloc
+{
+    [_operationQueue release];
+    [super dealloc];
+}
+
 - (id)init
 {
     self = [super init];
@@ -58,6 +68,20 @@ NSString * const NSMetadataQueryLocalComputerScope = @"kMDQueryScopeComputer";
 {
     NSLog(@"STUB: [%@ %@]", [self description], NSStringFromSelector(_cmd));
     return nil;
+}
+
+- (NSOperationQueue *)operationQueue
+{
+    return _operationQueue;
+}
+
+- (void)setOperationQueue:(NSOperationQueue *)operationQueue
+{
+    if (_operationQueue != operationQueue)
+    {
+        [_operationQueue release];
+        _operationQueue = [operationQueue retain];
+    }
 }
 
 - (void)setDelegate:(id <NSMetadataQueryDelegate>)delegate
@@ -216,22 +240,64 @@ NSString * const NSMetadataQueryLocalComputerScope = @"kMDQueryScopeComputer";
 
 @implementation NSMetadataItem
 
+- (id)initWithURL:(NSURL *)url
+{
+    self = [super init];
+    if (self != nil)
+    {
+        _url = [url retain];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [_url release];
+    [super dealloc];
+}
+
 - (id)valueForAttribute:(NSString *)key
 {
-    NSLog(@"STUB: [%@ %@]", [self description], NSStringFromSelector(_cmd));
+    if (_url == nil || key == nil)
+    {
+        return nil;
+    }
+    if ([key isEqualToString:NSMetadataItemURLKey])
+    {
+        return _url;
+    }
+    if ([key isEqualToString:NSMetadataItemPathKey])
+    {
+        return [_url path];
+    }
+    if ([key isEqualToString:NSMetadataItemFSNameKey] || [key isEqualToString:NSMetadataItemDisplayNameKey])
+    {
+        return [_url lastPathComponent];
+    }
     return nil;
 }
 
 - (NSDictionary *)valuesForAttributes:(NSArray *)keys
 {
-    NSLog(@"STUB: [%@ %@]", [self description], NSStringFromSelector(_cmd));
-    return nil;
+    NSMutableDictionary *values = [NSMutableDictionary dictionary];
+    for (NSString *key in keys)
+    {
+        id value = [self valueForAttribute:key];
+        if (value != nil)
+        {
+            [values setObject:value forKey:key];
+        }
+    }
+    return values;
 }
 
 - (NSArray *)attributes
 {
-    NSLog(@"STUB: [%@ %@]", [self description], NSStringFromSelector(_cmd));
-    return nil;
+    if (_url == nil)
+    {
+        return [NSArray array];
+    }
+    return [NSArray arrayWithObjects:NSMetadataItemURLKey, NSMetadataItemPathKey, NSMetadataItemFSNameKey, NSMetadataItemDisplayNameKey, nil];
 }
 
 @end

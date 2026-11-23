@@ -19,6 +19,20 @@
 
 #import <Foundation/NSObject.h>
 
-@interface NSScriptCommand : NSObject <NSCoding>
+@class NSDictionary, NSString;
+
+@interface NSScriptCommand : NSObject <NSCoding> {
+	NSDictionary *_arguments;
+	NSInteger _scriptErrorNumber;
+	NSString *_scriptErrorString;
+}
+
++ (NSScriptCommand *)currentCommand;
+- (NSDictionary *)arguments;
+- (NSDictionary *)evaluatedArguments;
+- (id)performDefaultImplementation;
+- (void)setArguments:(NSDictionary *)arguments;
+- (void)setScriptErrorNumber:(NSInteger)errorNumber;
+- (void)setScriptErrorString:(NSString *)errorString;
 
 @end

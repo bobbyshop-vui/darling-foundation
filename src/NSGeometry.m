@@ -306,6 +306,63 @@ NSRect NSIntegralRect(NSRect aRect)
 	return rect;
 }
 
+// Round one edge according to which of the three rounding modes is requested.
+// `minEdge` selects the direction for a minimum edge (inward rounds up, outward rounds down);
+// a maximum edge is the opposite.
+static CGFloat NSAlignEdge(CGFloat v, BOOL isMin, BOOL inward, BOOL outward, BOOL nearest)
+{
+	if (nearest)
+		return floor(v + 0.5);
+	if (inward)
+		return isMin ? ceil(v) : floor(v);
+	if (outward)
+		return isMin ? floor(v) : ceil(v);
+	return v;
+}
+
+static void NSAlignAxis(CGFloat *origin, CGFloat *size, BOOL minIn, BOOL minOut, BOOL minNear,
+		BOOL maxIn, BOOL maxOut, BOOL maxNear, BOOL szIn, BOOL szOut, BOOL szNear)
+{
+	CGFloat lo = *origin, hi = *origin + *size;
+
+	lo = NSAlignEdge(lo, YES, minIn, minOut, minNear);
+	if (maxIn || maxOut || maxNear)
+		hi = NSAlignEdge(hi, NO, maxIn, maxOut, maxNear);
+	else if (szIn || szOut || szNear)
+	{
+		// The size options apply when no maximum edge option is given.
+		CGFloat s = hi - *origin;
+		if (szNear)
+			s = floor(s + 0.5);
+		else if (szIn)
+			s = floor(s);
+		else
+			s = ceil(s);
+		hi = lo + s;
+	}
+	*origin = lo;
+	*size = hi - lo;
+}
+
+NSRect NSIntegralRectWithOptions(NSRect aRect, NSAlignmentOptions opts)
+{
+	NSRect r = aRect;
+
+	NSAlignAxis(&r.origin.x, &r.size.width,
+		(opts & NSAlignMinXInward) != 0, (opts & NSAlignMinXOutward) != 0, (opts & NSAlignMinXNearest) != 0,
+		(opts & NSAlignMaxXInward) != 0, (opts & NSAlignMaxXOutward) != 0, (opts & NSAlignMaxXNearest) != 0,
+		(opts & NSAlignWidthInward) != 0, (opts & NSAlignWidthOutward) != 0, (opts & NSAlignWidthNearest) != 0);
+	NSAlignAxis(&r.origin.y, &r.size.height,
+		(opts & NSAlignMinYInward) != 0, (opts & NSAlignMinYOutward) != 0, (opts & NSAlignMinYNearest) != 0,
+		(opts & NSAlignMaxYInward) != 0, (opts & NSAlignMaxYOutward) != 0, (opts & NSAlignMaxYNearest) != 0,
+		(opts & NSAlignHeightInward) != 0, (opts & NSAlignHeightOutward) != 0, (opts & NSAlignHeightNearest) != 0);
+	if (r.size.width < 0)
+		r.size.width = 0;
+	if (r.size.height < 0)
+		r.size.height = 0;
+	return r;
+}
+
 void NSDivideRect(NSRect aRect, NSRect *slice, NSRect *remainder, CGFloat amount, NSRectEdge edge)
 {
 	static NSRect sRect;

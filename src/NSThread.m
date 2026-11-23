@@ -6,6 +6,7 @@
 //
 
 #import <Foundation/NSThread.h>
+#import <Block.h>
 #import <Foundation/NSArray.h>
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSException.h>
@@ -224,10 +225,26 @@ static void NSThreadEnd(NSThread *thread)
     return self;
 }
 
+- (instancetype)initWithBlock:(void (^)(void))block
+{
+    if (block == nil) {
+        [self release];
+        [NSException raise:NSInvalidArgumentException format:@"NSThread block must not be nil"];
+        return nil;
+    }
+
+    self = [self init];
+    if (self)
+        _block = Block_copy(block);
+    return self;
+}
+
 - (void)dealloc
 {
     [_target release];
     [_argument release];
+    if (_block != nil)
+        Block_release(_block);
     [_threadDictionary release];
     [_name release];
     pthread_attr_destroy(&_attr);
@@ -392,6 +409,11 @@ static void *__NSThread__main__(NSThread *thread)
 
 - (void)main
 {
+    if (_block != nil) {
+        _block();
+        return;
+    }
+
     if (_target && _selector)
     {
         objc_msgSend(_target, _selector, _argument);

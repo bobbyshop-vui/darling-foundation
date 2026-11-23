@@ -3,6 +3,8 @@
 #include <Foundation/NSObject.h>
 #include <Foundation/NSData.h>
 #include <Foundation/NSString.h>
+#include <Foundation/NSArray.h>
+#include <Foundation/NSDictionary.h>
 #include <MacTypes.h>
 
 #include <AE/AE.h>
@@ -19,7 +21,20 @@ typedef int DescType;
 struct AEDesc;
 */
 
-@interface NSAppleEventDescriptor : NSObject
+@class NSDate;
+
+@interface NSAppleEventDescriptor : NSObject {
+    DescType _aedType;
+    NSData *_aedData;
+    NSMutableArray *_aedItems;
+    NSMutableArray *_aedKeys;
+    NSMutableDictionary *_aedAttributes;
+    AEEventClass _aedEventClass;
+    AEEventID _aedEventID;
+    AEReturnID _aedReturnID;
+    AETransactionID _aedTransactionID;
+    struct AEDesc _aedStruct;
+}
 
 + (NSAppleEventDescriptor *)appleEventWithEventClass:(AEEventClass)eventClass
                                              eventID:(AEEventID)eventID
@@ -37,6 +52,8 @@ struct AEDesc;
 
 + (NSAppleEventDescriptor *)descriptorWithEnumCode:(OSType)enumerator;
 + (NSAppleEventDescriptor *)descriptorWithInt32:(SInt32)signedInt;
++ (NSAppleEventDescriptor *)descriptorWithDouble:(double)doubleValue;
++ (NSAppleEventDescriptor *)descriptorWithDate:(NSDate *)date;
 + (NSAppleEventDescriptor *)descriptorWithString:(NSString *)string;
 + (NSAppleEventDescriptor *)descriptorWithTypeCode:(OSType)typeCode;
 + (NSAppleEventDescriptor *)listDescriptor;
@@ -62,6 +79,8 @@ struct AEDesc;
 
 - (Boolean)booleanValue;
 - (SInt32)int32Value;
+- (double)doubleValue;
+- (NSDate *)dateValue;
 - (NSString *)stringValue;
 
 - (DescType)descriptorType;

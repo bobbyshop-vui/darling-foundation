@@ -43,6 +43,9 @@
 #import <Foundation/NSMachBootstrapServer.h>
 
 @interface NSSocketPortNameServer : NSPortNameServer
+
++ (NSSocketPortNameServer *)sharedInstance;
+
 @end
 
 // #import <Foundation/NSMessagePortNameServer.h>

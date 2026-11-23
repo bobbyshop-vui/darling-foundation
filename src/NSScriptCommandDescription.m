@@ -18,28 +18,49 @@
 */
 
 #import <Foundation/NSScriptCommandDescription.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSCoder.h>
 
 @implementation NSScriptCommandDescription
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_commandName release];
+	[_returnType release];
+	[_suiteName release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (NSString *)commandName
+{
+	return _commandName ? _commandName : @"";
+}
+
+- (NSString *)returnType
+{
+	return _returnType;
+}
+
+- (NSString *)suiteName
+{
+	return _suiteName ? _suiteName : @"";
 }
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder
 {
-	NSLog(@"[NSScriptCommandDescription initWithCoder:]");
-	return [self init];
+	if (!(self = [super init]))
+		return nil;
+	_commandName = [[aDecoder decodeObjectForKey:@"commandName"] copy];
+	_returnType = [[aDecoder decodeObjectForKey:@"returnType"] copy];
+	_suiteName = [[aDecoder decodeObjectForKey:@"suiteName"] copy];
+	return self;
 }
 
 - (void)encodeWithCoder:(NSCoder *)aCoder
 {
-	NSLog(@"[NSScriptCommandDescription encodeWithCoder:");
+	[aCoder encodeObject:_commandName forKey:@"commandName"];
+	[aCoder encodeObject:_returnType forKey:@"returnType"];
+	[aCoder encodeObject:_suiteName forKey:@"suiteName"];
 }
 
 @end

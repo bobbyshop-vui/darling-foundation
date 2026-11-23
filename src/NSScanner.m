@@ -691,6 +691,68 @@ static inline NSUInteger skipSkipSet(NSScanner *self, NSString *s)
     return foundInt;
 }
 
+- (BOOL)scanUnsignedLongLong:(unsigned long long *)value
+{
+    NSUInteger length = [scanString length] - scanLocation;
+    if (length == 0)
+    {
+        return NO;
+    }
+    unichar *buf = malloc((length + 1) * sizeof(unichar));
+    buf[length] = (unichar)0x0;
+    unichar *ptr = buf;
+    [scanString getCharacters:ptr range:NSMakeRange(scanLocation, length)];
+
+    length -= skipLeading(&ptr, length, skipSet);
+    if (length == 0)
+    {
+        free(buf);
+        return NO;
+    }
+    if (*ptr == '+')
+    {
+        ptr++;
+    }
+    else if (*ptr == '-')
+    {
+        free(buf);
+        return NO;
+    }
+
+    unsigned long long counter = 0;
+    BOOL foundInt = NO;
+    BOOL overflow = NO;
+    while (*ptr >= '0' && *ptr <= '9')
+    {
+        int increment = *ptr - '0';
+        foundInt = YES;
+        if (!overflow)
+        {
+            if (counter > ULONG_LONG_MAX / 10 ||
+                (counter == ULONG_LONG_MAX / 10 && (unsigned long long)increment > ULONG_LONG_MAX % 10))
+            {
+                overflow = YES;
+            }
+            else
+            {
+                counter = counter * 10 + (unsigned long long)increment;
+            }
+        }
+        ptr++;
+    }
+
+    if (foundInt)
+    {
+        scanLocation += (ptr - buf);
+        if (value)
+        {
+            *value = overflow ? ULONG_LONG_MAX : counter;
+        }
+    }
+    free(buf);
+    return foundInt;
+}
+
 - (BOOL)scanInt:(int *)value
 {
     NSUInteger length = [scanString length] - scanLocation;

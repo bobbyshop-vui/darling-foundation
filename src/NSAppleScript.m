@@ -18,8 +18,9 @@
 */
 
 #import <Foundation/NSAppleScript.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSValue.h>
+#import <Foundation/NSAppleEventDescriptor.h>
 
 NSString *const NSAppleScriptErrorMessage = @"NSAppleScriptErrorMessage";
 NSString *const NSAppleScriptErrorNumber = @"NSAppleScriptErrorNumber";
@@ -27,20 +28,61 @@ NSString *const NSAppleScriptErrorAppName = @"NSAppleScriptErrorAppName";
 NSString *const NSAppleScriptErrorBriefMessage = @"NSAppleScriptErrorBriefMessage";
 NSString *const NSAppleScriptErrorRange = @"NSAppleScriptErrorRange";
 
+/*
+ * Darling has no AppleScript (OSA) interpreter, so a script can be created and
+ * its source read back, but compiling and executing report the failure through
+ * the error dictionary the way a missing scripting component would.
+ */
+static const int NSAppleScriptUnavailableErrorNumber = -1751; // errOSAGeneralError
+
+static void NSAppleScriptReportUnavailable(NSDictionary **errorInfo)
+{
+    if (errorInfo == NULL)
+        return;
+
+    NSString *message = @"AppleScript is not available on this system.";
+    *errorInfo = [NSDictionary dictionaryWithObjectsAndKeys:
+        message, NSAppleScriptErrorMessage,
+        message, NSAppleScriptErrorBriefMessage,
+        [NSNumber numberWithInt: NSAppleScriptUnavailableErrorNumber], NSAppleScriptErrorNumber,
+        nil];
+}
+
 @implementation NSAppleScript
+
+- (instancetype)initWithSource:(NSString *)source
+{
+    if ((self = [super init]) != nil)
+        _appleScriptSource = [source copy];
+    return self;
+}
+
+- (void)dealloc
+{
+    [_appleScriptSource release];
+    [super dealloc];
+}
 
 - (id)copyWithZone:(NSZone *)zone
 {
-	NSLog(@"NSAppleScript copyWithZone:");
-	return nil;
+    return [[NSAppleScript allocWithZone: zone] initWithSource: _appleScriptSource];
 }
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (NSString *)source
+{
+    return _appleScriptSource;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (BOOL)compileAndReturnError:(NSDictionary **)errorInfo
+{
+    NSAppleScriptReportUnavailable(errorInfo);
+    return NO;
+}
+
+- (NSAppleEventDescriptor *)executeAndReturnError:(NSDictionary **)errorInfo
+{
+    NSAppleScriptReportUnavailable(errorInfo);
+    return nil;
 }
 
 @end

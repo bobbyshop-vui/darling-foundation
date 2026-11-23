@@ -1,6 +1,6 @@
 #import <Foundation/NSObject.h>
 
-@class NSString;
+@class NSString, NSTimeZone;
 
 FOUNDATION_EXPORT NSString * const NSSystemClockDidChangeNotification;
 
@@ -50,5 +50,17 @@ typedef double NSTimeInterval;
 @end
 
 @interface NSCalendarDate : NSDate
+{
+    NSTimeInterval _calDateInterval;
+    NSTimeZone *_calDateTimeZone;
+    NSString *_calDateFormat;
+}
+
+- (NSString *)calendarFormat;
+- (NSInteger)dayOfWeek;
+- (id)initWithString:(NSString *)description;
+- (void)setCalendarFormat:(NSString *)format;
+- (void)setTimeZone:(NSTimeZone *)aTimeZone;
+- (NSTimeZone *)timeZone;
 
 @end

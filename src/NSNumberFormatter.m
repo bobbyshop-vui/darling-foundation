@@ -7,6 +7,7 @@
 
 #import <CoreFoundation/CFNumberFormatter.h>
 #import <Foundation/NSNumberFormatter.h>
+#import <Foundation/NSAttributedString.h>
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSError.h>
 #import <Foundation/NSString.h>
@@ -33,6 +34,38 @@ static NSNumberFormatterBehavior defaultBehavior = NSNumberFormatterBehaviorDefa
 + (void)setDefaultFormatterBehavior:(NSNumberFormatterBehavior)behavior
 {
     defaultBehavior = behavior;
+}
+
+static NSString *localizedFormatString(NSString *format)
+{
+    NSMutableString *localized = [NSMutableString stringWithCapacity:[format length]];
+    BOOL quoted = NO;
+    for (NSUInteger i = 0; i < [format length]; i++)
+    {
+        unichar character = [format characterAtIndex:i];
+        if (character == 39)
+        {
+            [localized appendFormat:@"%C", character];
+            if (i + 1 < [format length] && [format characterAtIndex:i + 1] == 39)
+            {
+                [localized appendFormat:@"%C", character];
+                i++;
+            }
+            else
+            {
+                quoted = !quoted;
+            }
+        }
+        else if (character == '$' && !quoted)
+        {
+            [localized appendString:@"¤"];
+        }
+        else
+        {
+            [localized appendFormat:@"%C", character];
+        }
+    }
+    return localized;
 }
 
 - (id)init
@@ -65,6 +98,55 @@ static NSNumberFormatterBehavior defaultBehavior = NSNumberFormatterBehaviorDefa
     [super dealloc];
 }
 
+- (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string range:(inout NSRange *)rangep error:(out NSError **)error
+{
+    [self _regenerateFormatter];
+    NSRange range = (rangep != NULL) ? *rangep : NSMakeRange(0, [string length]);
+    NSNumber *number = nil;
+    if (_formatter != NULL && string != nil && range.location <= [string length] && range.length <= [string length] - range.location)
+    {
+        CFRange cfRange = CFRangeMake(range.location, range.length);
+        CFNumberRef parsed = CFNumberFormatterCreateNumberFromString(kCFAllocatorDefault,
+                                                                       _formatter,
+                                                                       (CFStringRef)string,
+                                                                       &cfRange,
+                                                                       [_attributes[@"parseIntegersOnly"] boolValue] ? kCFNumberFormatterParseIntegersOnly : 0);
+        if (parsed != NULL)
+        {
+            number = [(NSNumber *)parsed autorelease];
+            if ((self.minimum != nil && [number compare:self.minimum] == NSOrderedAscending) ||
+                (self.maximum != nil && [number compare:self.maximum] == NSOrderedDescending))
+            {
+                number = nil;
+            }
+            else if (rangep != NULL)
+            {
+                *rangep = NSMakeRange(cfRange.location, cfRange.length);
+            }
+        }
+    }
+
+    if (number == nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:2048 userInfo:@{
+                NSLocalizedDescriptionKey: @"The value couldn’t be formatted as a number.",
+            }];
+        }
+        return NO;
+    }
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+    if (obj != NULL)
+    {
+        *obj = number;
+    }
+    return YES;
+}
+
 - (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string errorDescription:(out NSString **)errorStr
 {
     NSError *error = nil;
@@ -92,7 +174,182 @@ static NSNumberFormatterBehavior defaultBehavior = NSNumberFormatterBehaviorDefa
         return nil;
     }
     [self _regenerateFormatter];
-    return [(NSNumber *)CFNumberFormatterCreateNumberFromString(kCFAllocatorDefault, _formatter, (CFStringRef)string, NULL, [_attributes[@"parseIntegersOnly"] boolValue] ? kCFNumberFormatterParseIntegersOnly : 0) autorelease];
+    NSNumber *number = [(NSNumber *)CFNumberFormatterCreateNumberFromString(kCFAllocatorDefault, _formatter, (CFStringRef)string, NULL, [_attributes[@"parseIntegersOnly"] boolValue] ? kCFNumberFormatterParseIntegersOnly : 0) autorelease];
+    if (number == nil)
+    {
+        return nil;
+    }
+    if ((self.minimum != nil && [number compare:self.minimum] == NSOrderedAscending) ||
+        (self.maximum != nil && [number compare:self.maximum] == NSOrderedDescending))
+    {
+        return nil;
+    }
+    return number;
+}
+
+- (NSAttributedString *)attributedStringForZero
+{
+    NSAttributedString *attributedString = _attributes[@"attributedStringForZero"];
+    if (attributedString != nil)
+    {
+        return attributedString;
+    }
+    NSString *symbol = [self zeroSymbol] ?: @"0";
+    return [[[NSAttributedString alloc] initWithString:symbol attributes:[self textAttributesForZero]] autorelease];
+}
+
+- (void)setAttributedStringForZero:(NSAttributedString *)attributedString
+{
+    if (attributedString == nil)
+    {
+        [_attributes removeObjectForKey:@"attributedStringForZero"];
+        return;
+    }
+    NSAttributedString *copy = [attributedString copy];
+    _attributes[@"attributedStringForZero"] = copy;
+    [self setZeroSymbol:[copy string]];
+    [self setTextAttributesForZero:[copy length] ? [copy attributesAtIndex:0 effectiveRange:NULL] : nil];
+    [copy release];
+}
+
+- (NSAttributedString *)attributedStringForNil
+{
+    NSAttributedString *attributedString = _attributes[@"attributedStringForNil"];
+    if (attributedString != nil)
+    {
+        return attributedString;
+    }
+    NSString *symbol = [self nilSymbol] ?: @"";
+    return [[[NSAttributedString alloc] initWithString:symbol attributes:[self textAttributesForNil]] autorelease];
+}
+
+- (void)setAttributedStringForNil:(NSAttributedString *)attributedString
+{
+    if (attributedString == nil)
+    {
+        [_attributes removeObjectForKey:@"attributedStringForNil"];
+        return;
+    }
+    NSAttributedString *copy = [attributedString copy];
+    _attributes[@"attributedStringForNil"] = copy;
+    [self setNilSymbol:[copy string]];
+    [self setTextAttributesForNil:[copy length] ? [copy attributesAtIndex:0 effectiveRange:NULL] : nil];
+    [copy release];
+}
+
+- (NSAttributedString *)attributedStringForNotANumber
+{
+    NSAttributedString *attributedString = _attributes[@"attributedStringForNotANumber"];
+    if (attributedString != nil)
+    {
+        return attributedString;
+    }
+    NSString *symbol = [self notANumberSymbol] ?: @"NaN";
+    return [[[NSAttributedString alloc] initWithString:symbol attributes:[self textAttributesForNotANumber]] autorelease];
+}
+
+- (void)setAttributedStringForNotANumber:(NSAttributedString *)attributedString
+{
+    if (attributedString == nil)
+    {
+        [_attributes removeObjectForKey:@"attributedStringForNotANumber"];
+        return;
+    }
+    NSAttributedString *copy = [attributedString copy];
+    _attributes[@"attributedStringForNotANumber"] = copy;
+    [self setNotANumberSymbol:[copy string]];
+    [self setTextAttributesForNotANumber:[copy length] ? [copy attributesAtIndex:0 effectiveRange:NULL] : nil];
+    [copy release];
+}
+
+- (BOOL)hasThousandSeparators
+{
+    return [self usesGroupingSeparator];
+}
+
+- (void)setHasThousandSeparators:(BOOL)flag
+{
+    [self setUsesGroupingSeparator:flag];
+}
+
+- (NSString *)thousandSeparator
+{
+    return [self groupingSeparator];
+}
+
+- (void)setThousandSeparator:(NSString *)separator
+{
+    [self setGroupingSeparator:separator];
+}
+
+- (BOOL)localizesFormat
+{
+    return [_attributes[@"localizesFormat"] boolValue];
+}
+
+- (void)setLocalizesFormat:(BOOL)localizes
+{
+    _attributes[@"localizesFormat"] = @(localizes);
+    [self _reset];
+}
+
+- (NSString *)format
+{
+    NSString *format = _attributes[@"format"];
+    if (format != nil)
+    {
+        return format;
+    }
+    [self _regenerateFormatter];
+    CFStringRef currentFormat = (_formatter != NULL) ? CFNumberFormatterGetFormat(_formatter) : NULL;
+    return (NSString *)currentFormat ?: @"";
+}
+
+- (void)setFormat:(NSString *)format
+{
+    if (format != nil)
+    {
+        _attributes[@"format"] = [[format copy] autorelease];
+    }
+    else
+    {
+        [_attributes removeObjectForKey:@"format"];
+    }
+    [self _reset];
+}
+
+- (NSNumber *)minimum
+{
+    return _attributes[@"minimum"];
+}
+
+- (void)setMinimum:(NSNumber *)minimum
+{
+    if (minimum != nil)
+    {
+        _attributes[@"minimum"] = [[minimum copy] autorelease];
+    }
+    else
+    {
+        [_attributes removeObjectForKey:@"minimum"];
+    }
+}
+
+- (NSNumber *)maximum
+{
+    return _attributes[@"maximum"];
+}
+
+- (void)setMaximum:(NSNumber *)maximum
+{
+    if (maximum != nil)
+    {
+        _attributes[@"maximum"] = [[maximum copy] autorelease];
+    }
+    else
+    {
+        [_attributes removeObjectForKey:@"maximum"];
+    }
 }
 
 - (NSNumberFormatterStyle)numberStyle
@@ -697,7 +954,12 @@ if (_formatter != NULL) { \
 
     if (_attributes[@"format"])
     {
-        CFNumberFormatterSetFormat(_formatter, (CFStringRef)_attributes[@"format"]);
+        NSString *format = _attributes[@"format"];
+        if ([self localizesFormat])
+        {
+            format = localizedFormatString(format);
+        }
+        CFNumberFormatterSetFormat(_formatter, (CFStringRef)format);
     }
     if (_attributes[(id)kCFNumberFormatterCurrencyCode])
     {

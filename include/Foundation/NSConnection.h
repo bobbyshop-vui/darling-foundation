@@ -80,6 +80,12 @@ typedef NSArray<NSNumber *> *NSConnectionReleasedProxyRecord;
     // Used to pass the port coder (and the message data it decodes) from whoever
     // happens to receive the message to the interested thread.
     NSMutableDictionary<NSNumber *, NSConcretePortCoder *> *_sequenceNumberToCoder;
+
+    // Traffic counters reported by -statistics. Updated atomically.
+    NSUInteger _statRequestsSent;
+    NSUInteger _statRequestsReceived;
+    NSUInteger _statRepliesSent;
+    NSUInteger _statRepliesReceived;
 }
 
 @property (readonly, getter=isValid) BOOL valid;
@@ -91,6 +97,7 @@ typedef NSArray<NSNumber *> *NSConnectionReleasedProxyRecord;
 @property NSTimeInterval requestTimeout;
 @property NSTimeInterval replyTimeout;
 @property (readonly, copy) NSArray<NSRunLoopMode> *requestModes;
+@property (readonly, copy) NSDictionary *statistics;
 
 // Creation.
 - (instancetype) init;

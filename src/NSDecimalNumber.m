@@ -512,6 +512,16 @@ static NSString *NSDecimalNumberBehaviors = @"NSDecimalNumberBehaviors";
     }
 }
 
+- (NSString *)descriptionWithLocale:(id)locale
+{
+    if ([self isEqual:[NSDecimalNumber notANumber]])
+    {
+        return @"NaN";
+    }
+    NSDecimal decimal = [self decimalValue];
+    return NSDecimalString(&decimal, locale);
+}
+
 - (NSString *)description
 {
     #warning NSDecimalNumber description needs a real implementation

@@ -1,6 +1,8 @@
 #import <Foundation/NSString.h>
 #import <Foundation/NSDictionary.h>
 
+@class NSData, NSError;
+
 typedef NS_OPTIONS(NSUInteger, NSAttributedStringEnumerationOptions) {
     NSAttributedStringEnumerationReverse                          = (1UL << 1),
     NSAttributedStringEnumerationLongestEffectiveRangeNotRequired = (1UL << 20)
@@ -51,5 +53,11 @@ typedef NS_OPTIONS(NSUInteger, NSAttributedStringEnumerationOptions) {
 - (void)setAttributedString:(NSAttributedString *)attrString;
 - (void)beginEditing;
 - (void)endEditing;
+
+// The alignment and writing direction use the values of AppKit's
+// NSTextAlignment and NSWritingDirection enumerations.
+- (void)setAlignment:(NSInteger)alignment range:(NSRange)range;
+- (void)setBaseWritingDirection:(NSInteger)writingDirection range:(NSRange)range;
+- (BOOL)readFromData:(NSData *)data options:(NSDictionary *)opts documentAttributes:(NSDictionary **)dict error:(NSError **)error;
 
 @end

@@ -19,18 +19,11 @@
 
 #import <Foundation/NSScriptClassDescription.h>
 
-#import <Foundation/NSInvocation.h>
-
 @implementation NSScriptClassDescription
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+- (NSString *)suiteName
 {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation
-{
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+    return nil;
 }
 
 @end

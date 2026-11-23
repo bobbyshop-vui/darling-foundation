@@ -1,6 +1,6 @@
 #import <Foundation/NSObject.h>
 
-@class NSData, NSMutableDictionary, NSDictionary, NSError, NSURL;
+@class NSImage, NSData, NSMutableDictionary, NSDictionary, NSError, NSURL;
 
 typedef NS_OPTIONS(NSUInteger, NSFileWrapperReadingOptions) {
     NSFileWrapperReadingImmediate = 1 << 0,
@@ -46,5 +46,8 @@ typedef NS_OPTIONS(NSUInteger, NSFileWrapperWritingOptions) {
 - (NSString *)keyForFileWrapper:(NSFileWrapper *)child;
 - (NSData *)regularFileContents;
 - (NSURL *)symbolicLinkDestinationURL;
+- (NSImage *)icon;
+- (void)setIcon:(NSImage *)icon;
+- (id)initWithCoder:(NSCoder *)coder;
 
 @end

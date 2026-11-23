@@ -122,6 +122,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     }
 }
 
+- (void) setAttributesWithDictionary: (NSDictionary *) attributes {
+    [self setAttributesAsDictionary: attributes];
+}
+
 - (void) setChildren: (NSArray *) children {
     [_children setArray: children];
 }

@@ -198,6 +198,15 @@ typedef NSUInteger NSURLBookmarkFileCreationOptions;
 
 @end
 
-@interface NSURLQueryItem : NSObject <NSSecureCoding, NSCopying>
+@interface NSURLQueryItem : NSObject <NSSecureCoding, NSCopying> {
+@private
+    NSString *_name;
+    NSString *_value;
+}
+
+- (instancetype)initWithName:(NSString *)name value:(NSString *)value;
++ (instancetype)queryItemWithName:(NSString *)name value:(NSString *)value;
+@property (readonly) NSString *name;
+@property (readonly) NSString *value;
 
 @end

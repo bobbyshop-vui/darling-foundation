@@ -57,6 +57,20 @@ static NSDateFormatterBehavior defaultBehavior = NSDateFormatterBehaviorDefault;
     return self;
 }
 
+- (id)initWithDateFormat:(NSString *)format allowNaturalLanguage:(BOOL)flag
+{
+    self = [self init];
+    if (self)
+    {
+        if (format != nil)
+        {
+            [self setDateFormat:format];
+        }
+        _attributes[@"allowsNaturalLanguage"] = @(flag);
+    }
+    return self;
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
@@ -70,6 +84,46 @@ static NSDateFormatterBehavior defaultBehavior = NSDateFormatterBehaviorDefault;
     [self _clearFormatter];
     [_attributes release];
     [super dealloc];
+}
+
+- (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string range:(inout NSRange *)rangep error:(out NSError **)error
+{
+    [self _regenerateFormatter];
+    NSDate *date = nil;
+    NSRange range = (rangep != NULL) ? *rangep : NSMakeRange(0, [string length]);
+    if (_formatter != NULL && string != nil && NSMaxRange(range) <= [string length])
+    {
+        CFRange cfRange = CFRangeMake(range.location, range.length);
+        date = [(NSDate *)CFDateFormatterCreateDateFromString(kCFAllocatorDefault, _formatter, (CFStringRef)string, &cfRange) autorelease];
+        if (date != nil && rangep != NULL)
+        {
+            *rangep = NSMakeRange(cfRange.location, cfRange.length);
+        }
+    }
+    if (date == nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:2048 userInfo:@{
+                NSLocalizedDescriptionKey: @"The value couldn\u2019t be formatted as a date.",
+            }];
+        }
+        return NO;
+    }
+    if (obj != NULL)
+    {
+        *obj = date;
+    }
+    return YES;
+}
+
+- (void)setLocalizedDateFormatFromTemplate:(NSString *)dateFormatTemplate
+{
+    NSString *format = [NSDateFormatter dateFormatFromTemplate:dateFormatTemplate options:0 locale:[self locale]];
+    if (format != nil)
+    {
+        [self setDateFormat:format];
+    }
 }
 
 - (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string errorDescription:(out NSString **)error

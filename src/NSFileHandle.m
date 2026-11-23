@@ -465,6 +465,57 @@ static NSError *_NSErrorWithFilePath(int code, id path)
     return -1;
 }
 
+- (id)initWithFileDescriptor:(int)fd
+{
+    return [self initWithFileDescriptor:fd closeOnDealloc:NO];
+}
+
+- (id)initWithFileDescriptor:(int)fd closeOnDealloc:(BOOL)closeopt
+{
+    NSRequestConcreteImplementation();
+    return nil;
+}
+
+- (void)readInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    NSRequestConcreteImplementation();
+}
+
+- (void)readInBackgroundAndNotify
+{
+    [self readInBackgroundAndNotifyForModes:nil];
+}
+
+- (void)readToEndOfFileInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    NSRequestConcreteImplementation();
+}
+
+- (void)readToEndOfFileInBackgroundAndNotify
+{
+    [self readToEndOfFileInBackgroundAndNotifyForModes:nil];
+}
+
+- (void)acceptConnectionInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    NSRequestConcreteImplementation();
+}
+
+- (void)acceptConnectionInBackgroundAndNotify
+{
+    [self acceptConnectionInBackgroundAndNotifyForModes:nil];
+}
+
+- (void)waitForDataInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    NSRequestConcreteImplementation();
+}
+
+- (void)waitForDataInBackgroundAndNotify
+{
+    [self waitForDataInBackgroundAndNotifyForModes:nil];
+}
+
 @end
 
 @implementation NSConcreteFileHandle
@@ -1363,6 +1414,38 @@ static void NSConcreteFileHandlePerform(void *info)
 - (int)fileDescriptor
 {
     return -1;
+}
+
+- (id)initWithFileDescriptor:(int)fd closeOnDealloc:(BOOL)closeopt
+{
+    return self;
+}
+
+- (void)_postEmptyDataNotification:(NSString *)name
+{
+    NSDictionary *info = [NSDictionary dictionaryWithObject:[NSData data] forKey:NSFileHandleNotificationDataItem];
+    [[NSNotificationCenter defaultCenter] postNotificationName:name object:self userInfo:info];
+}
+
+// The null device is always at end of file: every read completes immediately with no data.
+- (void)readInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    [self _postEmptyDataNotification:NSFileHandleReadCompletionNotification];
+}
+
+- (void)readToEndOfFileInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    [self _postEmptyDataNotification:NSFileHandleReadToEndOfFileCompletionNotification];
+}
+
+- (void)waitForDataInBackgroundAndNotifyForModes:(NSArray *)modes
+{
+    [[NSNotificationCenter defaultCenter] postNotificationName:NSFileHandleDataAvailableNotification object:self];
+}
+
+// Nothing can ever connect to the null device.
+- (void)acceptConnectionInBackgroundAndNotifyForModes:(NSArray *)modes
+{
 }
 
 - (void (^)(NSFileHandle *))readabilityHandler

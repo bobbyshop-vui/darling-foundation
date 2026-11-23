@@ -5,7 +5,12 @@
 #import <CoreFoundation/CFNumber.h>
 #import <CoreFoundation/CFSet.h>
 
-@class NSArray, NSMutableArray, NSMutableData, NSData, NSKeyedArchiver, NSKeyedUnarchiver;
+@class NSArray, NSMutableArray, NSMutableData, NSData, NSSet, NSKeyedArchiver, NSKeyedUnarchiver;
+
+typedef NS_ENUM(NSInteger, NSDecodingFailurePolicy) {
+    NSDecodingFailurePolicyRaiseException = 0,
+    NSDecodingFailurePolicySetErrorAndReturn = 1,
+};
 
 @protocol NSKeyedArchiverDelegate <NSObject>
 @optional
@@ -104,9 +109,12 @@ typedef struct offsetDataStruct offsetDataStruct;
     unsigned long long _len;
     _NSKeyedUnarchiverHelper *_helper;
     CFMutableDictionaryRef _reservedDictionary;
+    NSDecodingFailurePolicy _decodingFailurePolicy;
 }
 
++ (id)unarchiveTopLevelObjectWithData:(NSData *)data error:(NSError **)error;
 + (id)unarchivedObjectOfClass:(Class)cls fromData:(NSData *)data error:(NSError **)error;
++ (id)unarchivedObjectOfClasses:(NSSet *)classes fromData:(NSData *)data error:(NSError **)error;
 + (id)unarchiveObjectWithData:(NSData *)data;
 + (id)unarchiveObjectWithFile:(NSString *)path;
 - (id)initForReadingWithData:(NSData *)data;
@@ -114,6 +122,8 @@ typedef struct offsetDataStruct offsetDataStruct;
 - (void)setDelegate:(id <NSKeyedUnarchiverDelegate>)delegate;
 - (id <NSKeyedUnarchiverDelegate>)delegate;
 - (void)finishDecoding;
+- (NSDecodingFailurePolicy)decodingFailurePolicy;
+- (void)setDecodingFailurePolicy:(NSDecodingFailurePolicy)decodingFailurePolicy;
 + (void)setClass:(Class)cls forClassName:(NSString *)codedName;
 - (void)setClass:(Class)cls forClassName:(NSString *)codedName;
 + (Class)classForClassName:(NSString *)codedName;

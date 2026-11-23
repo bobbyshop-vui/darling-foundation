@@ -18,19 +18,17 @@
 */
 
 #import <Foundation/NSPortNameServer.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
 
 @implementation NSSocketPortNameServer
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
++ (NSSocketPortNameServer *)sharedInstance
 {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation
-{
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+    static NSSocketPortNameServer *instance = nil;
+    @synchronized(self) {
+        if (instance == nil)
+            instance = [[self alloc] init];
+    }
+    return instance;
 }
 
 @end

@@ -803,4 +803,48 @@ OBJC_PROTOCOL_IMPL_POP
 @end
 
 @implementation NSURLQueryItem
+
+- (instancetype)initWithName:(NSString *)name value:(NSString *)value
+{
+    if (name == nil) {
+        [self release];
+        [NSException raise:NSInvalidArgumentException format:@"NSURLQueryItem name must not be nil"];
+        return nil;
+    }
+
+    self = [super init];
+    if (self) {
+        _name = [name copy];
+        _value = [value copy];
+    }
+    return self;
+}
+
++ (instancetype)queryItemWithName:(NSString *)name value:(NSString *)value
+{
+    return [[[self alloc] initWithName:name value:value] autorelease];
+}
+
+- (NSString *)name
+{
+    return _name;
+}
+
+- (NSString *)value
+{
+    return _value;
+}
+
+- (id)copyWithZone:(NSZone *)zone
+{
+    return [self retain];
+}
+
+- (void)dealloc
+{
+    [_name release];
+    [_value release];
+    [super dealloc];
+}
+
 @end

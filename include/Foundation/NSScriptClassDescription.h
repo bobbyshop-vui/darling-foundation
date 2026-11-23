@@ -23,4 +23,6 @@
 @interface NSScriptClassDescription : NSClassDescription
 {
 }
+
+- (NSString *)suiteName;
 @end

@@ -7,6 +7,8 @@
 
 #import <Foundation/NSIndexPath.h>
 #import <Foundation/NSRange.h>
+#import <Foundation/NSException.h>
+#import <string.h>
 #import <stdlib.h>
 
 @implementation NSIndexPath
@@ -14,6 +16,12 @@
 + (id)indexPathWithIndex:(NSUInteger)index
 {
     return [[[self alloc] initWithIndex:index] autorelease];
+}
+
++ (id)indexPathForItem:(NSInteger)item inSection:(NSInteger)section
+{
+    NSUInteger indexes[2] = { (NSUInteger)section, (NSUInteger)item };
+    return [[[self alloc] initWithIndexes:indexes length:2] autorelease];
 }
 
 + (id)indexPathWithIndexes:(const NSUInteger [])indexes length:(NSUInteger)length
@@ -133,7 +141,7 @@
 
 - (NSUInteger)indexAtPosition:(NSUInteger)position
 {
-    if (position > _length)
+    if (position >= _length)
     {
         return NSNotFound;
     }
@@ -151,6 +159,30 @@
     {
         memcpy(indexes, _indexes, sizeof(NSUInteger) * _length);
     }
+}
+
+- (void)getIndexes:(NSUInteger *)indexes range:(NSRange)positionRange
+{
+    if (positionRange.location > _length || positionRange.length > _length - positionRange.location)
+    {
+        [NSException raise:NSRangeException format:@"*** -[NSIndexPath getIndexes:range:]: range {%lu, %lu} out of bounds for length %lu",
+            (unsigned long)positionRange.location, (unsigned long)positionRange.length, (unsigned long)_length];
+        return;
+    }
+    if (positionRange.length > 0)
+    {
+        memcpy(indexes, _indexes + positionRange.location, sizeof(NSUInteger) * positionRange.length);
+    }
+}
+
+- (NSInteger)item
+{
+    return (NSInteger)[self indexAtPosition:1];
+}
+
+- (NSInteger)section
+{
+    return (NSInteger)[self indexAtPosition:0];
 }
 
 - (NSComparisonResult)compare:(NSIndexPath *)otherObject

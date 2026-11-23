@@ -7,6 +7,7 @@
 
 #import <Foundation/NSOrthography.h>
 #import <Foundation/NSArray.h>
+#import <Foundation/NSCoder.h>
 #import "NSObjectInternal.h"
 
 typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
@@ -25,6 +26,7 @@ typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
 - (NSOrthographyFlags)orthographyFlags;
 - (NSDictionary *)languageMap;
 - (NSString *)dominantScript;
+- (instancetype)initWithCoder:(NSCoder *)coder;
 - (void)dealloc;
 
 @end
@@ -60,6 +62,12 @@ typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
     return nil;
 }
 
+- (instancetype)initWithCoder:(NSCoder *)coder
+{
+    [self release];
+    return [[NSComplexOrthography alloc] initWithCoder:coder];
+}
+
 - (NSArray *)allLanguages
 {
     NSArray *scripts = [self allScripts];
@@ -86,7 +94,7 @@ typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
     // ensure dominant is the first script (even for subclassers)
     [all removeObject:dominant];
     [all insertObject:dominant atIndex:0];
-    return [all autorelase];
+    return [all autorelease];
 }
 
 - (NSString *)dominantLanguage
@@ -178,7 +186,7 @@ typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
 - (NSOrthographyFlags)orthographyFlags;
 - (NSDictionary *)languageMap;
 - (NSString *)dominantScript;
-- (id)initWithCoder:(NSCoder *)coder;
+- (instancetype)initWithCoder:(NSCoder *)coder;
 - (void)encodeWithCoder:(NSCoder *)coder;
 - (Class)classForCoder;
 
@@ -189,4 +197,61 @@ typedef NS_OPTIONS(NSUInteger, NSOrthographyFlags) {
 @end
 
 @implementation NSComplexOrthography
+
+- (NSString *)dominantScript
+{
+    return _dominantScript;
+}
+
+- (NSDictionary *)languageMap
+{
+    return _languageMap;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder
+{
+    self = [super init];
+    if (self == nil)
+    {
+        return nil;
+    }
+
+    NSString *script = nil;
+    NSDictionary *map = nil;
+    if ([coder allowsKeyedCoding])
+    {
+        script = [coder decodeObjectForKey:@"NSDominantScript"];
+        if (script == nil)
+        {
+            script = [coder decodeObjectForKey:@"dominantScript"];
+        }
+        map = [coder decodeObjectForKey:@"NSLanguageMap"];
+        if (map == nil)
+        {
+            map = [coder decodeObjectForKey:@"languageMap"];
+        }
+    }
+    else
+    {
+        script = [coder decodeObject];
+        map = [coder decodeObject];
+    }
+
+    if (![script isKindOfClass:[NSString class]] || ![map isKindOfClass:[NSDictionary class]])
+    {
+        [self release];
+        return nil;
+    }
+    _dominantScript = [script copy];
+    _languageMap = [map copy];
+    return self;
+}
+
+- (void)dealloc
+{
+    [_dominantScript release];
+    [_languageMap release];
+    [super dealloc];
+}
+
 @end

@@ -9,6 +9,8 @@
 #import "NSAttributedStringInternal.h"
 #import "NSStringInternal.h"
 #import <Foundation/NSPortCoder.h>
+#import <Foundation/NSData.h>
+#import <Foundation/NSError.h>
 #import <dispatch/dispatch.h>
 
 @implementation NSAttributedString
@@ -65,6 +67,23 @@ OBJC_PROTOCOL_IMPL_POP
 - (id)initWithString:(NSString *)str
 {
     return [self initWithString:str attributes:[NSDictionary dictionary]];
+}
+
+// Instances of NSAttributedString and NSMutableAttributedString are created by
+// the placeholder, which has its own initializers. These are reached only by
+// subclasses, which are given the same CoreFoundation backed storage.
+- (id)initWithString:(NSString *)str attributes:(NSDictionary *)attrs
+{
+    Class storageClass = [self isKindOfClass:[NSMutableAttributedString class]] ? [NSMutableAttributedString class] : [NSAttributedString class];
+    [self release];
+    return [[storageClass alloc] initWithString:str attributes:attrs];
+}
+
+- (id)initWithAttributedString:(NSAttributedString *)attrStr
+{
+    Class storageClass = [self isKindOfClass:[NSMutableAttributedString class]] ? [NSMutableAttributedString class] : [NSAttributedString class];
+    [self release];
+    return [[storageClass alloc] initWithAttributedString:attrStr];
 }
 
 - (NSAttributedString *)attributedSubstringFromRange:(NSRange)range
@@ -567,6 +586,141 @@ SINGLETON_RR()
 {
     [_owner release];
     [super dealloc];
+}
+
+@end
+
+// The paragraph style classes live in AppKit, which Foundation cannot link
+// against; they are used through the runtime when AppKit is loaded.
+@protocol NSDarlingMutableParagraphStyle <NSObject>
+- (void)setAlignment:(NSInteger)alignment;
+- (void)setBaseWritingDirection:(NSInteger)writingDirection;
+@end
+
+static NSString * const NSDarlingParagraphStyleAttributeName = @"NSParagraphStyle";
+
+static void NSDarlingApplyParagraphStyle(NSMutableAttributedString *attrString, NSRange range, void (^configure)(id<NSDarlingMutableParagraphStyle> style))
+{
+    if ((uint64_t)range.location + range.length > [attrString length])
+    {
+        @throw [NSException exceptionWithName:NSRangeException reason:[NSString stringWithFormat:@"range (%lu,%lu) beyond NSAttributedString bounds (%lu)", (unsigned long)range.location, (unsigned long)range.length, (unsigned long)[attrString length]] userInfo:nil];
+    }
+    Class styleClass = NSClassFromString(@"NSMutableParagraphStyle");
+    if (styleClass == Nil || [attrString length] == 0)
+    {
+        return;
+    }
+    // Paragraph attributes always cover whole paragraphs.
+    NSRange paragraphs = [[attrString string] paragraphRangeForRange:range];
+    NSUInteger location = paragraphs.location;
+    NSUInteger end = NSMaxRange(paragraphs);
+
+    [attrString beginEditing];
+    while (location < end)
+    {
+        NSRange effective;
+        id existing = [attrString attribute:NSDarlingParagraphStyleAttributeName atIndex:location longestEffectiveRange:&effective inRange:NSMakeRange(location, end - location)];
+        id<NSDarlingMutableParagraphStyle> style;
+        if (existing != nil)
+        {
+            style = [existing mutableCopy];
+        }
+        else
+        {
+            style = [[styleClass alloc] init];
+        }
+        configure(style);
+        [attrString addAttribute:NSDarlingParagraphStyleAttributeName value:style range:effective];
+        [style release];
+        location = NSMaxRange(effective);
+    }
+    [attrString endEditing];
+}
+
+@implementation NSMutableAttributedString (NSDarlingParagraphAttributes)
+
+- (void)setAlignment:(NSInteger)alignment range:(NSRange)range
+{
+    NSDarlingApplyParagraphStyle(self, range, ^(id<NSDarlingMutableParagraphStyle> style) {
+        [style setAlignment:alignment];
+    });
+}
+
+- (void)setBaseWritingDirection:(NSInteger)writingDirection range:(NSRange)range
+{
+    NSDarlingApplyParagraphStyle(self, range, ^(id<NSDarlingMutableParagraphStyle> style) {
+        [style setBaseWritingDirection:writingDirection];
+    });
+}
+
+// Only plain text documents can be read without AppKit's rich text readers.
+- (BOOL)readFromData:(NSData *)data options:(NSDictionary *)opts documentAttributes:(NSDictionary **)dict error:(NSError **)error
+{
+    NSString *documentType = [opts objectForKey:@"DocumentType"];
+    if (documentType == nil)
+    {
+        const char *bytes = [data bytes];
+        NSUInteger length = [data length];
+        if (length >= 5 && strncmp(bytes, "{\\rtf", 5) == 0)
+        {
+            documentType = @"NSRTF";
+        }
+        else if (length >= 5 && (strncasecmp(bytes, "<html", 5) == 0 || strncasecmp(bytes, "<!doc", 5) == 0))
+        {
+            documentType = @"NSHTML";
+        }
+        else
+        {
+            documentType = @"NSPlainText";
+        }
+    }
+
+    if (data == nil || ![documentType isEqual:@"NSPlainText"])
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:(data == nil ? 256 : 3328) userInfo:@{
+                NSLocalizedDescriptionKey: data == nil ? @"The file couldn\u2019t be opened." : @"The document type is not supported.",
+            }];
+        }
+        return NO;
+    }
+
+    NSString *string = nil;
+    NSNumber *encodingOption = [opts objectForKey:@"CharacterEncoding"];
+    if (encodingOption != nil)
+    {
+        string = [[[NSString alloc] initWithData:data encoding:[encodingOption unsignedIntegerValue]] autorelease];
+    }
+    else
+    {
+        string = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+        if (string == nil)
+        {
+            string = [[[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding] autorelease];
+        }
+    }
+    if (string == nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:264 userInfo:@{
+                NSLocalizedDescriptionKey: @"The file couldn\u2019t be opened because the text encoding of its contents can\u2019t be determined.",
+            }];
+        }
+        return NO;
+    }
+
+    NSDictionary *defaultAttributes = [opts objectForKey:@"DefaultAttributes"];
+    NSAttributedString *loaded = [[NSAttributedString alloc] initWithString:string attributes:defaultAttributes ?: [NSDictionary dictionary]];
+    [self setAttributedString:loaded];
+    [loaded release];
+
+    if (dict != NULL)
+    {
+        *dict = @{ @"DocumentType": @"NSPlainText" };
+    }
+    return YES;
 }
 
 @end

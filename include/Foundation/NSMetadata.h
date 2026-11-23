@@ -1,7 +1,7 @@
 #import <Foundation/NSObject.h>
 #import <Foundation/NSDate.h>
 
-@class NSString, NSArray, NSDictionary, NSPredicate, NSMetadataQuery;
+@class NSString, NSArray, NSDictionary, NSPredicate, NSMetadataQuery, NSOperationQueue, NSURL;
 @class NSMetadataItem, NSMetadataQueryAttributeValueTuple, NSMetadataQueryResultGroup;
 
 FOUNDATION_EXPORT NSString * const NSMetadataQueryDidStartGatheringNotification;
@@ -37,8 +37,14 @@ FOUNDATION_EXPORT NSString * const NSMetadataQueryLocalComputerScope;
 @end
 
 @interface NSMetadataQuery : NSObject
+{
+@private
+    NSOperationQueue *_operationQueue;
+}
 
 - (id)init;
+- (NSOperationQueue *)operationQueue;
+- (void)setOperationQueue:(NSOperationQueue *)operationQueue;
 - (id <NSMetadataQueryDelegate>)delegate;
 - (void)setDelegate:(id <NSMetadataQueryDelegate>)delegate;
 - (NSPredicate *)predicate;
@@ -71,7 +77,12 @@ FOUNDATION_EXPORT NSString * const NSMetadataQueryLocalComputerScope;
 @end
 
 @interface NSMetadataItem : NSObject
+{
+@private
+    NSURL *_url;
+}
 
+- (id)initWithURL:(NSURL *)url;
 - (id)valueForAttribute:(NSString *)key;
 - (NSDictionary *)valuesForAttributes:(NSArray *)keys;
 - (NSArray *)attributes;

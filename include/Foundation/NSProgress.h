@@ -2,6 +2,8 @@
 #import <Foundation/NSString.h>
 #import <Foundation/NSDictionary.h>
 
+@class NSNumber, NSURL, NSMutableArray, NSMutableDictionary;
+
 FOUNDATION_EXPORT NSString * const NSProgressEstimatedTimeRemainingKey;
 FOUNDATION_EXPORT NSString * const NSProgressThroughputKey;
 FOUNDATION_EXPORT NSString * const NSProgressKindFile;
@@ -27,10 +29,18 @@ FOUNDATION_EXPORT NSString * const NSProgressFileIconKey;
 	BOOL _paused;
 	BOOL _cancellable;
 	BOOL _pausable;
+	NSMutableDictionary *_userInfo;
+	NSMutableArray *_childProgresses;
+	NSString *_localizedDescription;
+	NSString *_localizedAdditionalDescription;
+	NSString *_kind;
+	NSProgress *_parentProgress;
+	int64_t _parentPendingUnitCount;
 }
 
 + (instancetype)currentProgress;
 + (instancetype)progressWithTotalUnitCount:(int64_t)unitCount;
++ (instancetype)progressWithTotalUnitCount:(int64_t)unitCount parent:(NSProgress *)parent pendingUnitCount:(int64_t)portionOfParentTotalUnitCount;
 + (instancetype)discreteProgressWithTotalUnitCount: (int64_t)unitCount;
 
 - (instancetype)initWithParent: (NSProgress*)parent userInfo: (NSDictionary<NSString*, id>*)userInfo;
@@ -49,5 +59,28 @@ FOUNDATION_EXPORT NSString * const NSProgressFileIconKey;
 - (void)cancel;
 - (void)pause;
 - (void)resume;
+
+- (void)becomeCurrentWithPendingUnitCount:(int64_t)unitCount;
+- (NSNumber *)estimatedTimeRemaining;
+- (NSNumber *)fileCompletedCount;
+- (NSNumber *)fileTotalCount;
+- (NSURL *)fileURL;
+- (double)fractionCompleted;
+- (BOOL)isFinished;
+- (NSString *)kind;
+- (NSString *)localizedAdditionalDescription;
+- (NSString *)localizedDescription;
+- (void)resignCurrent;
+- (void)setEstimatedTimeRemaining:(NSNumber *)estimatedTimeRemaining;
+- (void)setFileCompletedCount:(NSNumber *)fileCompletedCount;
+- (void)setFileTotalCount:(NSNumber *)fileTotalCount;
+- (void)setFileURL:(NSURL *)fileURL;
+- (void)setKind:(NSString *)kind;
+- (void)setLocalizedAdditionalDescription:(NSString *)localizedAdditionalDescription;
+- (void)setLocalizedDescription:(NSString *)localizedDescription;
+- (void)setThroughput:(NSNumber *)throughput;
+- (void)setUserInfoObject:(id)object forKey:(NSString *)key;
+- (NSNumber *)throughput;
+- (NSDictionary<NSString *, id> *)userInfo;
 
 @end

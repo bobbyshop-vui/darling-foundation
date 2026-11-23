@@ -470,6 +470,11 @@ OBJC_EXPORT void _objc_rootDealloc(id obj);
     _objc_rootDealloc(self);
 }
 
+- (void)finalize
+{
+    // NSProxy has no object storage to finalize beyond normal deallocation.
+}
+
 - (BOOL)retainWeakReference
 {
     return [self _tryRetain];

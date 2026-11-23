@@ -19,22 +19,68 @@
 
 #import <Foundation/NSObject.h>
 
+@class NSAppleEventDescriptor, NSScriptClassDescription, NSScriptWhoseTest, NSString;
+
+typedef NSUInteger NSInsertionPosition;
+enum {
+	NSPositionAfter = 0,
+	NSPositionBefore = 1,
+	NSPositionBeginning = 2,
+	NSPositionEnd = 3,
+	NSPositionReplace = 4
+};
+
 @interface NSScriptObjectSpecifier : NSObject <NSCoding>
+{
+@protected
+	NSScriptClassDescription *_containerClassDescription;
+	NSScriptObjectSpecifier *_containerSpecifier;
+	NSString *_key;
+}
+
+- (NSAppleEventDescriptor *)descriptor;
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key;
+- (instancetype)initWithContainerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key;
+- (NSString *)key;
+- (void)setKey:(NSString *)key;
 @end
 
 @interface NSObject (NSScriptObjectSpecifiers)
 @end
 
 @interface NSIndexSpecifier : NSScriptObjectSpecifier
+{
+	NSInteger _index;
+}
+- (NSInteger)index;
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key index:(NSInteger)index;
+- (void)setIndex:(NSInteger)index;
 @end
 
 @interface NSMiddleSpecifier : NSScriptObjectSpecifier
 @end
 
 @interface NSNameSpecifier : NSScriptObjectSpecifier
+{
+	NSString *_name;
+}
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key name:(NSString *)name;
+- (NSString *)name;
+- (void)setName:(NSString *)name;
 @end
 
 @interface NSPositionalSpecifier : NSObject
+{
+	NSScriptObjectSpecifier *_objectSpecifier;
+	NSInsertionPosition _position;
+	NSInteger _insertionIndex;
+	BOOL _evaluated;
+}
+- (void)evaluate;
+- (NSInteger)insertionIndex;
+- (instancetype)initWithPosition:(NSInsertionPosition)position objectSpecifier:(NSScriptObjectSpecifier *)objectSpecifier;
+- (NSScriptObjectSpecifier *)objectSpecifier;
+- (NSInsertionPosition)position;
 @end
 
 @interface NSPropertySpecifier : NSScriptObjectSpecifier
@@ -50,7 +96,18 @@
 @end
 
 @interface NSUniqueIDSpecifier : NSScriptObjectSpecifier
+{
+	id _uniqueID;
+}
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key uniqueID:(id)uniqueID;
+- (void)setUniqueID:(id)uniqueID;
+- (id)uniqueID;
 @end
 
 @interface NSWhoseSpecifier : NSScriptObjectSpecifier
+{
+	NSScriptWhoseTest *_test;
+}
+- (void)setTest:(NSScriptWhoseTest *)test;
+- (NSScriptWhoseTest *)test;
 @end

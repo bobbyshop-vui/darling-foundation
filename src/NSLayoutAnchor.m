@@ -1,46 +1,143 @@
-/*
- This file is part of Darling.
-
- Copyright (C) 2025 Darling Developers
-
- Darling is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
-
- Darling is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Darling.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #import <Foundation/NSLayoutAnchor.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSLayoutConstraint.h>
+#import <Foundation/NSException.h>
+
+@interface NSLayoutAnchor (NSLayoutAnchorInternal)
+- (instancetype)initWithItem:(id)item attribute:(NSLayoutAttribute)attribute name:(NSString *)name;
+- (NSLayoutAttribute)_layoutAttribute;
+@end
+
+static NSString *nameForLayoutAttribute(NSLayoutAttribute attribute)
+{
+    switch (attribute)
+    {
+        case NSLayoutAttributeLeft: return @"left";
+        case NSLayoutAttributeRight: return @"right";
+        case NSLayoutAttributeTop: return @"top";
+        case NSLayoutAttributeBottom: return @"bottom";
+        case NSLayoutAttributeLeading: return @"leading";
+        case NSLayoutAttributeTrailing: return @"trailing";
+        case NSLayoutAttributeWidth: return @"width";
+        case NSLayoutAttributeHeight: return @"height";
+        case NSLayoutAttributeCenterX: return @"centerX";
+        case NSLayoutAttributeCenterY: return @"centerY";
+        case NSLayoutAttributeLastBaseline: return @"lastBaseline";
+        case NSLayoutAttributeFirstBaseline: return @"firstBaseline";
+        default: return @"anchor";
+    }
+}
 
 @implementation NSLayoutAnchor
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (instancetype)init
+{
+    return [self initWithItem:nil attribute:NSLayoutAttributeNotAnAttribute name:nil];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithItem:(id)item attribute:(NSLayoutAttribute)attribute name:(NSString *)name
+{
+    self = [super init];
+    if (self != nil)
+    {
+        _item = [item retain];
+        _attribute = attribute;
+        _name = [name copy];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [_item release];
+    [_name release];
+    [super dealloc];
+}
+
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)constant
+{
+    if (anchor == nil)
+    {
+        [NSException raise:NSInvalidArgumentException format:@"A layout anchor is required to create a constraint"];
+        return nil;
+    }
+    return [NSLayoutConstraint constraintWithItem:_item
+                                     attribute:(NSLayoutAttribute)_attribute
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:[anchor item]
+                                       attribute:[anchor _layoutAttribute]
+                                      multiplier:1.0
+                                        constant:constant];
+}
+
+- (BOOL)hasAmbiguousLayout
+{
+    if ([_item respondsToSelector:@selector(hasAmbiguousLayout)])
+    {
+        return [_item hasAmbiguousLayout];
+    }
+    return NO;
+}
+
+- (id)item
+{
+    return _item;
+}
+
+- (NSString *)name
+{
+    return _name ?: nameForLayoutAttribute((NSLayoutAttribute)_attribute);
+}
+
+- (NSLayoutAttribute)_layoutAttribute
+{
+    return (NSLayoutAttribute)_attribute;
 }
 
 @end
 
 @implementation NSLayoutDimension
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier
+{
+    if (anchor == nil)
+    {
+        [NSException raise:NSInvalidArgumentException format:@"A dimension anchor is required to create a constraint"];
+        return nil;
+    }
+    return [NSLayoutConstraint constraintWithItem:[self item]
+                                     attribute:[self _layoutAttribute]
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:[anchor item]
+                                       attribute:[anchor _layoutAttribute]
+                                      multiplier:multiplier
+                                        constant:0.0];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier
+{
+    if (anchor == nil)
+    {
+        [NSException raise:NSInvalidArgumentException format:@"A dimension anchor is required to create a constraint"];
+        return nil;
+    }
+    return [NSLayoutConstraint constraintWithItem:[self item]
+                                     attribute:[self _layoutAttribute]
+                                      relatedBy:NSLayoutRelationGreaterThanOrEqual
+                                         toItem:[anchor item]
+                                       attribute:[anchor _layoutAttribute]
+                                      multiplier:multiplier
+                                        constant:0.0];
+}
+
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)constant
+{
+    return [NSLayoutConstraint constraintWithItem:[self item]
+                                     attribute:[self _layoutAttribute]
+                                      relatedBy:NSLayoutRelationGreaterThanOrEqual
+                                         toItem:nil
+                                       attribute:NSLayoutAttributeNotAnAttribute
+                                      multiplier:1.0
+                                        constant:constant];
 }
 
 @end

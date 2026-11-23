@@ -215,6 +215,39 @@ set(foundation_sources
 	src/NSXMLDTD.m
 	src/NSXMLDTDNode.m
 	src/NSXMLElement.m
+	src/NSArray+XcodeAdditions.m
+	src/NSBackgroundActivityScheduler.m
+	src/NSBundleResourceRequest.m
+	src/NSCalendar+XcodeAdditions.m
+	src/NSCharacterSet+XcodeAdditions.m
+	src/NSData+XcodeAdditions.m
+	src/NSDate+XcodeAdditions.m
+	src/NSDateComponents+XcodeAdditions.m
+	src/NSDictionary+XcodeAdditions.m
+	src/NSError+XcodeAdditions.m
+	src/NSExtensionItem.m
+	src/NSFileProviderService.m
+	src/NSFileVersion.m
+	src/NSLocale+XcodeAdditions.m
+	src/NSMessagePortNameServer.m
+	src/NSMutableOrderedSet+XcodeAdditions.m
+	src/NSOrderedSet+XcodeAdditions.m
+	src/NSPersonNameComponents.m
+	src/NSPersonNameComponentsFormatter.m
+	src/NSRunLoop+XcodeAdditions.m
+	src/NSScriptWhoseTest.m
+	src/NSSpecifierTest.m
+	src/NSTimeZone+XcodeAdditions.m
+	src/NSURLProtocol+XcodeAdditions.m
+	src/NSURLRequest+XcodeAdditions.m
+	src/NSURLSession+XcodeAdditions.m
+	src/NSURLSessionConfiguration+XcodeAdditions.m
+	src/NSURLSessionTask+XcodeAdditions.m
+	src/NSURLSessionTaskTransactionMetrics.m
+	src/NSUnitAcceleration.m
+	src/NSUnitPressure.m
+	src/NSUserAutomatorTask.m
+	src/NSUserUnixTask.m
 	src/NSXMLNode.m
 	src/NSXMLParser.m
 

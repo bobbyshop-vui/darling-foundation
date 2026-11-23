@@ -2,7 +2,7 @@
 #import <Foundation/NSRange.h>
 #import <Foundation/NSTextCheckingResult.h>
 
-@class NSSpellServer, NSArray, NSDictionary, NSOrthography;
+@class NSMutableDictionary, NSSpellServer, NSArray, NSDictionary, NSOrthography;
 
 FOUNDATION_EXPORT NSString *const NSGrammarRange;
 FOUNDATION_EXPORT NSString *const NSGrammarUserDescription;
@@ -50,6 +50,8 @@ FOUNDATION_EXPORT NSString *const NSGrammarCorrections;
 @end
 
 @interface NSSpellServer : NSObject {
+    id<NSSpellServerDelegate> _delegate;
+    NSMutableDictionary *_languages;
 }
 
 - (id<NSSpellServerDelegate>) delegate;

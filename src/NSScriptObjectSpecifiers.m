@@ -18,28 +18,77 @@
 */
 
 #import <Foundation/NSScriptObjectSpecifiers.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSScriptClassDescription.h>
+#import <Foundation/NSScriptWhoseTest.h>
+#import <Foundation/NSAppleEventDescriptor.h>
+#import <Foundation/NSCoder.h>
+#import <Foundation/NSString.h>
 
 @implementation NSScriptObjectSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_containerClassDescription release];
+	[_containerSpecifier release];
+	[_key release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key
+{
+	if (!(self = [super init]))
+		return nil;
+	_containerClassDescription = [classDescription retain];
+	_containerSpecifier = [containerSpecifier retain];
+	_key = [key copy];
+	return self;
+}
+
+- (instancetype)initWithContainerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key
+{
+	return [self initWithContainerClassDescription:nil containerSpecifier:containerSpecifier key:key];
+}
+
+- (NSString *)key
+{
+	return _key ? _key : @"";
+}
+
+- (void)setKey:(NSString *)key
+{
+	NSString *copy = [key copy];
+	if (_key != copy)
+	{
+		[_key release];
+		_key = copy;
+	}
+	else
+	{
+		[copy release];
+	}
+}
+
+- (NSAppleEventDescriptor *)descriptor
+{
+	// Cocotron's Apple Event descriptor does not encode object-specifier records yet.
+	return [NSAppleEventDescriptor nullDescriptor];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder
 {
-	NSLog(@"[NSISO8601DateFormatter initWithCoder:]");
-	return [self init];
+	if (!(self = [super init]))
+		return nil;
+	_containerClassDescription = [[aDecoder decodeObjectForKey:@"containerClassDescription"] retain];
+	_containerSpecifier = [[aDecoder decodeObjectForKey:@"containerSpecifier"] retain];
+	_key = [[aDecoder decodeObjectForKey:@"key"] copy];
+	return self;
 }
 
 - (void)encodeWithCoder:(NSCoder *)aCoder
 {
-	NSLog(@"[NSISO8601DateFormatter encodeWithCoder:");
+	[aCoder encodeObject:_containerClassDescription forKey:@"containerClassDescription"];
+	[aCoder encodeObject:_containerSpecifier forKey:@"containerSpecifier"];
+	[aCoder encodeObject:_key forKey:@"key"];
 }
 
 - (BOOL)supportsSecureCoding
@@ -54,120 +103,198 @@
 
 @implementation NSIndexSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key index:(NSInteger)index
+{
+	if (!(self = [super initWithContainerClassDescription:classDescription containerSpecifier:containerSpecifier key:key]))
+		return nil;
+	_index = index;
+	return self;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (NSInteger)index
+{
+	return _index;
+}
+
+- (void)setIndex:(NSInteger)index
+{
+	_index = index;
 }
 
 @end
 
 @implementation NSMiddleSpecifier
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
-
 @end
 
 @implementation NSNameSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_name release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key name:(NSString *)name
+{
+	if (!(self = [super initWithContainerClassDescription:classDescription containerSpecifier:containerSpecifier key:key]))
+		return nil;
+	_name = [name copy];
+	return self;
+}
+
+- (NSString *)name
+{
+	return _name ? _name : @"";
+}
+
+- (void)setName:(NSString *)name
+{
+	NSString *copy = [name copy];
+	if (_name != copy)
+	{
+		[_name release];
+		_name = copy;
+	}
+	else
+	{
+		[copy release];
+	}
 }
 
 @end
 
 @implementation NSPositionalSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_objectSpecifier release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithPosition:(NSInsertionPosition)position objectSpecifier:(NSScriptObjectSpecifier *)objectSpecifier
+{
+	if (!(self = [super init]))
+		return nil;
+	_position = position;
+	_objectSpecifier = [objectSpecifier retain];
+	return self;
+}
+
+- (void)evaluate
+{
+	if (_evaluated)
+		return;
+	_evaluated = YES;
+
+	NSInteger referenceIndex = 0;
+	if ([_objectSpecifier isKindOfClass:[NSIndexSpecifier class]])
+		referenceIndex = [(NSIndexSpecifier *)_objectSpecifier index];
+
+	switch (_position)
+	{
+		case NSPositionBefore:
+		case NSPositionReplace:
+			_insertionIndex = referenceIndex;
+			break;
+		case NSPositionAfter:
+			_insertionIndex = referenceIndex + 1;
+			break;
+		case NSPositionBeginning:
+			_insertionIndex = 0;
+			break;
+		case NSPositionEnd:
+		default:
+			_insertionIndex = referenceIndex;
+			break;
+	}
+}
+
+- (NSInteger)insertionIndex
+{
+	[self evaluate];
+	return _insertionIndex;
+}
+
+- (NSScriptObjectSpecifier *)objectSpecifier
+{
+	return _objectSpecifier;
+}
+
+- (NSInsertionPosition)position
+{
+	return _position;
 }
 
 @end
 
 @implementation NSPropertySpecifier
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
-
 @end
 
 @implementation NSRandomSpecifier
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
-
 @end
 
 @implementation NSRangeSpecifier
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
-
 @end
 
 @implementation NSRelativeSpecifier
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
-
 @end
 
 @implementation NSUniqueIDSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_uniqueID release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithContainerClassDescription:(NSScriptClassDescription *)classDescription containerSpecifier:(NSScriptObjectSpecifier *)containerSpecifier key:(NSString *)key uniqueID:(id)uniqueID
+{
+	if (!(self = [super initWithContainerClassDescription:classDescription containerSpecifier:containerSpecifier key:key]))
+		return nil;
+	_uniqueID = [uniqueID retain];
+	return self;
+}
+
+- (void)setUniqueID:(id)uniqueID
+{
+	if (_uniqueID != uniqueID)
+	{
+		[uniqueID retain];
+		[_uniqueID release];
+		_uniqueID = uniqueID;
+	}
+}
+
+- (id)uniqueID
+{
+	return _uniqueID;
 }
 
 @end
 
 @implementation NSWhoseSpecifier
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (void)dealloc
+{
+	[_test release];
+	[super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (void)setTest:(NSScriptWhoseTest *)test
+{
+	if (_test != test)
+	{
+		[test retain];
+		[_test release];
+		_test = test;
+	}
+}
+
+- (NSScriptWhoseTest *)test
+{
+	if (!_test)
+		_test = [[NSScriptWhoseTest alloc] init];
+	return _test;
 }
 
 @end

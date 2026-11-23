@@ -1,8 +1,11 @@
 #import <Foundation/NSObject.h>
 
-@class NSString, NSData, NSSet;
+@class NSString, NSData, NSSet, NSError;
 
 @interface NSCoder : NSObject
+{
+    NSError *_nsCoderFailureError;
+}
 
 - (void)encodeValueOfObjCType:(const char *)type at:(const void *)addr;
 - (void)encodeDataObject:(NSData *)data;
@@ -55,5 +58,23 @@
 - (id)decodeObjectOfClasses:(NSSet *)classes forKey:(NSString *)key;
 - (id)decodePropertyListForKey:(NSString *)key;
 - (NSSet *)allowedClasses;
+
+@end
+
+@interface NSCoder (NSDecodeFailure)
+
+- (NSError *)error;
+- (void)failWithError:(NSError *)error;
+- (id)decodeTopLevelObjectAndReturnError:(NSError **)error;
+- (id)decodeTopLevelObjectForKey:(NSString *)key error:(NSError **)error;
+- (id)decodeTopLevelObjectOfClass:(Class)aClass forKey:(NSString *)key error:(NSError **)error;
+- (id)decodeTopLevelObjectOfClasses:(NSSet *)classes forKey:(NSString *)key error:(NSError **)error;
+
+@end
+
+@interface NSCoder (NSTypedstreamCompatibility)
+
+- (void)encodeNXObject:(id)object;
+- (id)decodeNXObject;
 
 @end

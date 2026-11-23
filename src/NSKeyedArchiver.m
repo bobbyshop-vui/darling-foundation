@@ -272,12 +272,14 @@ static void _encodeObject(NSKeyedArchiver *archiver, id object, NSString *key)
                 [archiver->_containers addObject:dict];
                 [dict release];
 
-                encodeFinalValue(archiver, NSStringFromClass(class), @"$classname");
+                NSString *encodedClassName = [archiver classNameForClass:class] ?: NSStringFromClass(class);
+                encodeFinalValue(archiver, encodedClassName, @"$classname");
 
                 NSMutableArray *classes = [NSMutableArray new];
                 do
                 {
-                    CFArrayAppendValue((CFMutableArrayRef)classes, NSStringFromClass(class));
+                    NSString *encodedSuperclassName = [archiver classNameForClass:class] ?: NSStringFromClass(class);
+                    CFArrayAppendValue((CFMutableArrayRef)classes, encodedSuperclassName);
                     class = [class superclass];
                 } 
                 while (class != nil);
@@ -397,6 +399,10 @@ static void encodeDouble(NSKeyedArchiver *archiver, double d, NSString *key)
     dispatch_once(&archiverClassesOnce, ^{
             archiverClasses = [[NSMutableDictionary alloc] init];
         });
+    if (cls == Nil)
+    {
+        return nil;
+    }
     return [archiverClasses objectForKey:cls];
 }
 
@@ -405,7 +411,48 @@ static void encodeDouble(NSKeyedArchiver *archiver, double d, NSString *key)
     dispatch_once(&archiverClassesOnce, ^{
         archiverClasses = [[NSMutableDictionary alloc] init];
     });
-    [archiverClasses setObject:codedName forKey:(id<NSCopying>)cls];
+    if (cls == Nil)
+    {
+        return;
+    }
+    if (codedName == nil)
+    {
+        [archiverClasses removeObjectForKey:cls];
+    }
+    else
+    {
+        [archiverClasses setObject:codedName forKey:(id<NSCopying>)cls];
+    }
+}
+
+- (NSString *)classNameForClass:(Class)cls
+{
+    if (cls == Nil)
+    {
+        return nil;
+    }
+    NSString *className = [_classNameMap objectForKey:cls];
+    return className ?: [NSKeyedArchiver classNameForClass:cls];
+}
+
+- (void)setClassName:(NSString *)codedName forClass:(Class)cls
+{
+    if (cls == Nil)
+    {
+        return;
+    }
+    if (_classNameMap == nil)
+    {
+        _classNameMap = [[NSMutableDictionary alloc] init];
+    }
+    if (codedName == nil)
+    {
+        [_classNameMap removeObjectForKey:cls];
+    }
+    else
+    {
+        [_classNameMap setObject:codedName forKey:(id<NSCopying>)cls];
+    }
 }
 
 + (BOOL)archiveRootObject:(id)rootObject toFile:(NSString *)path
@@ -591,6 +638,7 @@ static void _release(CFAllocatorRef allocator, const void *value)
     CFRelease(_stream);
     [_containers release];
     [_objects release];
+    [_classNameMap release];
     CFRelease(_objRefMap);
     CFRelease(_conditionals);
     if (_visited != nil)

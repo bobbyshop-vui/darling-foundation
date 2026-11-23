@@ -1,5 +1,13 @@
 #import <Foundation/NSObject.h>
 
-@interface NSUnit : NSObject
+@class NSString;
+
+@interface NSUnit : NSObject {
+@private
+    NSString *_symbol;
+}
+
+@property (readonly, copy) NSString *symbol;
+- (instancetype)initWithSymbol:(NSString *)symbol;
 
 @end

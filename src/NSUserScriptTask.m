@@ -1,32 +1,60 @@
 #import <Foundation/NSUserScriptTask.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSFileManager.h>
+#import <Foundation/NSError.h>
+#import <Foundation/NSURL.h>
+#import <Foundation/NSString.h>
 
 @implementation NSUserScriptTask
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+- (instancetype)initWithURL:(NSURL *)url error:(NSError **)error
 {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+    if (error)
+        *error = nil;
+
+    BOOL isDirectory = NO;
+    NSString *path = [url path];
+    if (![url isFileURL] || ![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
+        if (error)
+            *error = [NSError errorWithDomain:@"NSUserScriptTaskErrorDomain" code:1 userInfo:nil];
+        [self release];
+        return nil;
+    }
+
+    NSString *extension = [path pathExtension];
+    BOOL isAppleScript = [extension caseInsensitiveCompare:@"scpt"] == NSOrderedSame ||
+                         [extension caseInsensitiveCompare:@"applescript"] == NSOrderedSame;
+    if (!isAppleScript) {
+        if (error)
+            *error = [NSError errorWithDomain:@"NSUserScriptTaskErrorDomain" code:2 userInfo:nil];
+        [self release];
+        return nil;
+    }
+    if ([self class] == [NSUserScriptTask class] && isAppleScript) {
+        [self release];
+        self = [[NSUserAppleScriptTask alloc] init];
+        if (!self)
+            return nil;
+    }
+
+    self = [super init];
+    if (self)
+        _scriptURL = [url copy];
+    return self;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation
+- (NSURL *)scriptURL
 {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+    return _scriptURL;
 }
 
+- (void)dealloc
+{
+    [_scriptURL release];
+    [super dealloc];
+}
 
 @end
 
 @implementation NSUserAppleScriptTask
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
-{
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (void)forwardInvocation:(NSInvocation *)anInvocation
-{
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
 
 @end

@@ -19,5 +19,30 @@
 
 #import <Foundation/Foundation.h>
 
-@interface NSUserActivity : NSObject
+@class NSDate;
+@protocol NSUserActivityDelegate;
+
+@interface NSUserActivity : NSObject {
+    NSString *_activityType;
+    NSString *_title;
+    NSDictionary *_userInfo;
+    NSDate *_expirationDate;
+    NSSet *_keywords;
+    id<NSUserActivityDelegate> _delegate;
+    BOOL _isCurrent;
+    BOOL _isInvalidated;
+}
+
+- (instancetype)initWithActivityType:(NSString *)activityType;
+
+@property (readonly, copy) NSString *activityType;
+@property (nullable, copy) NSString *title;
+@property (nullable, copy) NSDictionary *userInfo;
+@property (nullable, copy) NSDate *expirationDate;
+@property (copy) NSSet *keywords;
+@property (nullable, assign) id<NSUserActivityDelegate> delegate;
+
+- (void)invalidate;
+- (void)resignCurrent;
+
 @end

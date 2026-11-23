@@ -35,6 +35,7 @@ FOUNDATION_EXPORT NSString * const NSInvocationOperationCancelledException;
 - (BOOL)isExecuting;
 - (BOOL)isFinished;
 - (BOOL)isConcurrent;
+- (BOOL)isAsynchronous;
 - (BOOL)isReady;
 - (void)addDependency:(NSOperation *)op;
 - (void)removeDependency:(NSOperation *)op;
@@ -46,6 +47,8 @@ FOUNDATION_EXPORT NSString * const NSInvocationOperationCancelledException;
 - (void)setCompletionBlock:(void (^)(void))block;
 #endif
 - (void)waitUntilFinished;
+- (NSString *)name;
+- (void)setName:(NSString *)name;
 - (double)threadPriority;
 - (void)setThreadPriority:(double)p;
 

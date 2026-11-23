@@ -18,19 +18,28 @@
 */
 
 #import <Foundation/NSScriptExecutionContext.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
 
 @implementation NSScriptExecutionContext
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+- (void)dealloc
 {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+    [_topLevelObject release];
+    [super dealloc];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation
+- (void)setTopLevelObject:(id)object
 {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+    if (_topLevelObject != object)
+    {
+        [object retain];
+        [_topLevelObject release];
+        _topLevelObject = object;
+    }
+}
+
+- (id)topLevelObject
+{
+    return _topLevelObject;
 }
 
 @end

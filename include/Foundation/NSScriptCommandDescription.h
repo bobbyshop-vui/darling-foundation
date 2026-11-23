@@ -19,6 +19,16 @@
 
 #import <Foundation/NSObject.h>
 
-@interface NSScriptCommandDescription : NSObject <NSCoding>
+@class NSString;
+
+@interface NSScriptCommandDescription : NSObject <NSCoding> {
+	NSString *_commandName;
+	NSString *_returnType;
+	NSString *_suiteName;
+}
+
+- (NSString *)commandName;
+- (NSString *)returnType;
+- (NSString *)suiteName;
 
 @end

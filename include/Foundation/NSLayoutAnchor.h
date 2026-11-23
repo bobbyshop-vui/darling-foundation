@@ -19,8 +19,24 @@
 
 #import <Foundation/Foundation.h>
 
+@class NSLayoutConstraint;
+
 @interface NSLayoutAnchor : NSObject
+{
+@protected
+    id _item;
+    NSString *_name;
+    NSInteger _attribute;
+}
+
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)constant;
+- (BOOL)hasAmbiguousLayout;
+- (id)item;
+- (NSString *)name;
 @end
 
 @interface NSLayoutDimension : NSLayoutAnchor
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)constant;
 @end

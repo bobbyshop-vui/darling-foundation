@@ -18,8 +18,15 @@
 #import <Foundation/NSSerializer.h>
 #import "NSExternals.h"
 #import "NSObjectInternal.h"
+#import <Foundation/NSError.h>
 
 @implementation NSCoder
+
+- (void)dealloc
+{
+    [_nsCoderFailureError release];
+    [super dealloc];
+}
 
 - (void)_validateAllowedClass:(Class)cls forKey:(NSString *)key allowingInvocations:(BOOL)allowInv
 {
@@ -520,3 +527,123 @@ static inline const char *nextType(const char *type)
 
 @end
 
+// NSCoderReadCorruptError, NSCocoaErrorDomain
+#define NSCoderReadCorruptErrorCode 4864
+
+@implementation NSCoder (NSDecodeFailure)
+
+- (NSError *)error
+{
+    @synchronized (self)
+    {
+        return [[_nsCoderFailureError retain] autorelease];
+    }
+}
+
+- (void)failWithError:(NSError *)error
+{
+    if (error == nil)
+    {
+        return;
+    }
+    @synchronized (self)
+    {
+        // Only the first error is kept until a top-level decode picks it up.
+        if (_nsCoderFailureError == nil)
+        {
+            _nsCoderFailureError = [error retain];
+        }
+    }
+}
+
+- (id)_decodeTopLevelWithBlock:(id (^)(void))block error:(NSError **)outError
+{
+    @synchronized (self)
+    {
+        [_nsCoderFailureError release];
+        _nsCoderFailureError = nil;
+    }
+
+    id result = nil;
+    NSError *failure = nil;
+    @try
+    {
+        result = block();
+    }
+    @catch (NSException *exception)
+    {
+        NSDictionary *info = @{
+            NSLocalizedDescriptionKey: @"The data couldn\u2019t be read because it isn\u2019t in the correct format.",
+            NSLocalizedFailureReasonErrorKey: [exception reason] ?: [exception name],
+        };
+        failure = [NSError errorWithDomain:NSCocoaErrorDomain code:NSCoderReadCorruptErrorCode userInfo:info];
+        result = nil;
+    }
+
+    @synchronized (self)
+    {
+        if (failure == nil && _nsCoderFailureError != nil)
+        {
+            failure = [[_nsCoderFailureError retain] autorelease];
+        }
+        // The error has been handed to the top-level caller.
+        [_nsCoderFailureError release];
+        _nsCoderFailureError = nil;
+    }
+
+    if (failure != nil)
+    {
+        if (outError != NULL)
+        {
+            *outError = failure;
+        }
+        return nil;
+    }
+    return result;
+}
+
+- (id)decodeTopLevelObjectAndReturnError:(NSError **)error
+{
+    return [self _decodeTopLevelWithBlock:^id{
+        return [self decodeObject];
+    } error:error];
+}
+
+- (id)decodeTopLevelObjectForKey:(NSString *)key error:(NSError **)error
+{
+    return [self _decodeTopLevelWithBlock:^id{
+        return [self decodeObjectForKey:key];
+    } error:error];
+}
+
+- (id)decodeTopLevelObjectOfClass:(Class)aClass forKey:(NSString *)key error:(NSError **)error
+{
+    return [self _decodeTopLevelWithBlock:^id{
+        return [self decodeObjectOfClass:aClass forKey:key];
+    } error:error];
+}
+
+- (id)decodeTopLevelObjectOfClasses:(NSSet *)classes forKey:(NSString *)key error:(NSError **)error
+{
+    return [self _decodeTopLevelWithBlock:^id{
+        return [self decodeObjectOfClasses:classes forKey:key];
+    } error:error];
+}
+
+@end
+
+@implementation NSCoder (NSTypedstreamCompatibility)
+
+// Typedstream archives are not supported; the object is simply written and read
+// as an ordinary coded object.
+- (void)encodeNXObject:(id)object
+{
+    [self encodeObject:object];
+}
+
+- (id)decodeNXObject
+{
+    return [self decodeObject];
+}
+
+@end

@@ -849,6 +849,106 @@ static void setClassForClassName(Class cls, NSString *codedName)
     return [obj autorelease];
 }
 
+static NSError *unarchiverErrorForException(NSException *exception)
+{
+    NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:
+        @"The data couldn’t be read because it isn’t in the correct format.", NSLocalizedDescriptionKey,
+        ([exception reason] ?: [exception name]), NSLocalizedFailureReasonErrorKey,
+        nil];
+    return [NSError errorWithDomain:NSCocoaErrorDomain code:4864 userInfo:userInfo];
+}
+
++ (id)unarchiveTopLevelObjectWithData:(NSData *)data error:(NSError **)error
+{
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+
+    NSKeyedUnarchiver *unarchiver = nil;
+    @try
+    {
+        unarchiver = [[self alloc] initForReadingWithData:data];
+    }
+    @catch (NSException *exception)
+    {
+        if (error != NULL)
+        {
+            *error = unarchiverErrorForException(exception);
+        }
+        return nil;
+    }
+    if (unarchiver == nil)
+    {
+        if (error != NULL)
+        {
+            *error = unarchiverErrorForException([NSException exceptionWithName:NSInvalidUnarchiveOperationException reason:@"Failed to open archive" userInfo:nil]);
+        }
+        return nil;
+    }
+
+    id object = [[unarchiver decodeTopLevelObjectForKey:NSKeyedArchiveRootObjectKey error:error] retain];
+    [unarchiver finishDecoding];
+    [unarchiver release];
+    return [object autorelease];
+}
+
++ (id)unarchivedObjectOfClass:(Class)cls fromData:(NSData *)data error:(NSError **)error
+{
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+    if (cls == Nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:4864 userInfo:[NSDictionary dictionaryWithObject:@"A root class is required to securely decode this archive." forKey:NSLocalizedDescriptionKey]];
+        }
+        return nil;
+    }
+
+    NSKeyedUnarchiver *unarchiver = [[self alloc] initForReadingFromData:data error:error];
+    if (unarchiver == nil)
+    {
+        return nil;
+    }
+    [unarchiver setRequiresSecureCoding:YES];
+    [unarchiver setDecodingFailurePolicy:NSDecodingFailurePolicySetErrorAndReturn];
+    id object = [[unarchiver decodeTopLevelObjectOfClass:cls forKey:NSKeyedArchiveRootObjectKey error:error] retain];
+    [unarchiver finishDecoding];
+    [unarchiver release];
+    return [object autorelease];
+}
+
++ (id)unarchivedObjectOfClasses:(NSSet *)classes fromData:(NSData *)data error:(NSError **)error
+{
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+    if (classes == nil || [classes count] == 0)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:4864 userInfo:[NSDictionary dictionaryWithObject:@"At least one allowed root class is required to securely decode this archive." forKey:NSLocalizedDescriptionKey]];
+        }
+        return nil;
+    }
+
+    NSKeyedUnarchiver *unarchiver = [[self alloc] initForReadingFromData:data error:error];
+    if (unarchiver == nil)
+    {
+        return nil;
+    }
+    [unarchiver setRequiresSecureCoding:YES];
+    [unarchiver setDecodingFailurePolicy:NSDecodingFailurePolicySetErrorAndReturn];
+    id object = [[unarchiver decodeTopLevelObjectOfClasses:classes forKey:NSKeyedArchiveRootObjectKey error:error] retain];
+    [unarchiver finishDecoding];
+    [unarchiver release];
+    return [object autorelease];
+}
+
 + (id)unarchiveObjectWithFile:(NSString *)path
 {
     id obj = nil;
@@ -1074,8 +1174,51 @@ static CFDictionaryValueCallBacks sNSCFDictionaryValueCallBacks = {
 
 - (id)initForReadingFromData:(NSData *)data error:(NSError **)error
 {
-#warning TODO [NSKeyedUnarchiver initForReadingFromData:error:]
-    return [self initForReadingWithData: data];
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+
+    @try
+    {
+        self = [self initForReadingWithData:data];
+    }
+    @catch (NSException *exception)
+    {
+        if (error != NULL)
+        {
+            *error = unarchiverErrorForException(exception);
+        }
+        return nil;
+    }
+
+    if (self == nil)
+    {
+        if (error != NULL)
+        {
+            *error = unarchiverErrorForException([NSException exceptionWithName:NSInvalidUnarchiveOperationException reason:@"Failed to open archive" userInfo:nil]);
+        }
+        return nil;
+    }
+
+    _decodingFailurePolicy = NSDecodingFailurePolicySetErrorAndReturn;
+    [self setRequiresSecureCoding:YES];
+    return self;
+}
+
+- (void)setDecodingFailurePolicy:(NSDecodingFailurePolicy)decodingFailurePolicy
+{
+    if (decodingFailurePolicy != NSDecodingFailurePolicyRaiseException && decodingFailurePolicy != NSDecodingFailurePolicySetErrorAndReturn)
+    {
+        [NSException raise:NSInvalidArgumentException format:@"Invalid decoding failure policy: %ld", (long)decodingFailurePolicy];
+        return;
+    }
+    _decodingFailurePolicy = decodingFailurePolicy;
+}
+
+- (NSDecodingFailurePolicy)decodingFailurePolicy
+{
+    return _decodingFailurePolicy;
 }
 
 - (id)init
@@ -1709,7 +1852,7 @@ static CFDictionaryValueCallBacks sNSCFDictionaryValueCallBacks = {
     [_delegate unarchiver: self willReplaceObject: obj withObject: replacement];
     if (obj != replacement)
     {
-        void *uid = CFDictionaryGetValue(_objRefMap, obj);
+        const void *uid = CFDictionaryGetValue(_objRefMap, obj);
         CFDictionaryRemoveValue(_tmpRefObjMap, (const void *)uid);
         CFDictionarySetValue(_refObjMap, uid, replacement);
         CFDictionarySetValue(_objRefMap, replacement, uid);

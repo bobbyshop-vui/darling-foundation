@@ -1,15 +1,40 @@
 #import <Foundation/NSUnitConverterLinear.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
 
 @implementation NSUnitConverterLinear
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+- (instancetype)initWithCoefficient:(double)coefficient
+{
+    return [self initWithCoefficient:coefficient constant:0.0];
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (instancetype)initWithCoefficient:(double)coefficient constant:(double)constant
+{
+    self = [super init];
+    if (self) {
+        _coefficient = coefficient;
+        _constant = constant;
+    }
+    return self;
+}
+
+- (double)coefficient
+{
+    return _coefficient;
+}
+
+- (double)constant
+{
+    return _constant;
+}
+
+- (double)baseUnitValueFromValue:(double)value
+{
+    return _coefficient * value + _constant;
+}
+
+- (double)valueFromBaseUnitValue:(double)baseUnitValue
+{
+    return (baseUnitValue - _constant) / _coefficient;
 }
 
 @end

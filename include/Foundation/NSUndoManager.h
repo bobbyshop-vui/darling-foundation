@@ -19,7 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <Foundation/NSObject.h>
 
-@class NSArray, NSMutableArray, NSInvocation;
+@class NSArray, NSMutableArray, NSMutableSet, NSInvocation;
 
 enum {
     NSUndoCloseGroupingRunLoopOrdering = 350000,
@@ -49,6 +49,7 @@ FOUNDATION_EXPORT NSString *const NSUndoManagerDidRedoChangeNotification;
     NSString *_actionName;
     id _preparedTarget;
     BOOL _performRegistered;
+    NSMutableSet *_discardableInvocations;
 }
 
 - (NSArray *) runLoopModes;
@@ -80,6 +81,10 @@ FOUNDATION_EXPORT NSString *const NSUndoManagerDidRedoChangeNotification;
 - (void) registerUndoWithTarget: (id) target
                        selector: (SEL) selector
                          object: (id) object;
+- (void)registerUndoWithTarget:(id)target handler:(void (^)(id target))undoHandler;
+- (void)setActionIsDiscardable:(BOOL)discardable;
+- (BOOL)undoActionIsDiscardable;
+- (BOOL)redoActionIsDiscardable;
 
 - (void) removeAllActions;
 - (void) removeAllActionsWithTarget: (id) target;

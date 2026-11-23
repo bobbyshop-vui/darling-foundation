@@ -18,19 +18,110 @@
 */
 
 #import <Foundation/NSUserActivity.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSDate.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSString.h>
 
 @implementation NSUserActivity
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+- (instancetype)initWithActivityType:(NSString *)activityType
 {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
+    self = [super init];
+    if (self) {
+        _activityType = [(activityType ?: @"") copy];
+        _keywords = [[NSSet alloc] init];
+    }
+    return self;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation
+- (NSString *)activityType
 {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+    return _activityType ?: @"";
+}
+
+- (NSString *)title
+{
+    return _title;
+}
+
+- (void)setTitle:(NSString *)title
+{
+    if (_title != title) {
+        [_title release];
+        _title = [title copy];
+    }
+}
+
+- (NSDictionary *)userInfo
+{
+    return _userInfo;
+}
+
+- (void)setUserInfo:(NSDictionary *)userInfo
+{
+    if (_userInfo != userInfo) {
+        [_userInfo release];
+        _userInfo = [userInfo copy];
+    }
+}
+
+- (NSDate *)expirationDate
+{
+    return _expirationDate;
+}
+
+- (void)setExpirationDate:(NSDate *)expirationDate
+{
+    if (_expirationDate != expirationDate) {
+        [_expirationDate release];
+        _expirationDate = [expirationDate copy];
+    }
+}
+
+- (NSSet *)keywords
+{
+    return _keywords ?: [NSSet set];
+}
+
+- (void)setKeywords:(NSSet *)keywords
+{
+    NSSet *newKeywords = keywords ?: [NSSet set];
+    if (_keywords != newKeywords) {
+        [_keywords release];
+        _keywords = [newKeywords copy];
+    }
+}
+
+- (id<NSUserActivityDelegate>)delegate
+{
+    return _delegate;
+}
+
+- (void)setDelegate:(id<NSUserActivityDelegate>)delegate
+{
+    _delegate = delegate;
+}
+
+- (void)resignCurrent
+{
+    _isCurrent = NO;
+}
+
+- (void)invalidate
+{
+    _isInvalidated = YES;
+    [self resignCurrent];
+}
+
+- (void)dealloc
+{
+    [_activityType release];
+    [_title release];
+    [_userInfo release];
+    [_expirationDate release];
+    [_keywords release];
+    [super dealloc];
 }
 
 @end

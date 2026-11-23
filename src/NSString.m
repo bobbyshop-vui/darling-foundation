@@ -17,6 +17,9 @@
 #import <Foundation/NSException.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <Foundation/NSLocale.h>
+#import <Foundation/NSFileManager.h>
+#import <Foundation/NSInvocation.h>
+#import <Foundation/NSMethodSignature.h>
 #import <Foundation/NSRegularExpression.h>
 #import "NSStringInternal.h"
 #import <Foundation/NSURL.h>
@@ -2235,6 +2238,181 @@ static BOOL _NSScanStringValue(NSString *self, NSNumericValueType type, NSNumeri
 {
     NSRange range = [self rangeOfString: string];
     return range.location != NSNotFound;
+}
+
+- (BOOL)localizedCaseInsensitiveContainsString:(NSString *)string
+{
+    return [self rangeOfString:string
+                       options:NSCaseInsensitiveSearch
+                         range:NSMakeRange(0, [self length])
+                        locale:[NSLocale currentLocale]].location != NSNotFound;
+}
+
+- (BOOL)localizedStandardContainsString:(NSString *)string
+{
+    return [self localizedStandardRangeOfString:string].location != NSNotFound;
+}
+
+- (NSRange)localizedStandardRangeOfString:(NSString *)string
+{
+    NSStringCompareOptions options = NSCaseInsensitiveSearch |
+                                     NSDiacriticInsensitiveSearch |
+                                     NSWidthInsensitiveSearch;
+    return [self rangeOfString:string
+                       options:options
+                         range:NSMakeRange(0, [self length])
+                        locale:[NSLocale currentLocale]];
+}
+
+- (NSString *)localizedUppercaseString
+{
+    return [self uppercaseStringWithLocale:[NSLocale currentLocale]];
+}
+
+- (NSString *)localizedLowercaseString
+{
+    return [self lowercaseStringWithLocale:[NSLocale currentLocale]];
+}
+
+- (NSString *)localizedCapitalizedString
+{
+    return [self capitalizedStringWithLocale:[NSLocale currentLocale]];
+}
+
+- (NSUInteger)completePathIntoString:(NSString **)outputName
+                       caseSensitive:(BOOL)caseSensitive
+                    matchesIntoArray:(NSArray **)outputArray
+                          filterTypes:(NSArray *)filterTypes
+{
+    NSRange slash = [self rangeOfString:@"/" options:NSBackwardsSearch];
+    NSUInteger prefixStart = slash.location == NSNotFound ? 0 : NSMaxRange(slash);
+    NSString *directory = slash.location == NSNotFound
+        ? @"."
+        : (slash.location == 0 ? @"/" : [self substringToIndex:slash.location]);
+    NSString *prefix = [self substringFromIndex:prefixStart];
+    NSString *base = [self substringToIndex:prefixStart];
+    NSError *error = nil;
+    NSArray *entries = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:directory error:&error];
+    NSMutableArray *matches = [NSMutableArray array];
+    NSStringCompareOptions comparison = caseSensitive ? 0 : NSCaseInsensitiveSearch;
+
+    for (NSString *entry in entries) {
+        NSRange prefixRange = [entry rangeOfString:prefix
+                                           options:comparison | NSAnchoredSearch
+                                             range:NSMakeRange(0, [entry length])
+                                            locale:caseSensitive ? nil : [NSLocale currentLocale]];
+        if (prefixRange.location == NSNotFound)
+            continue;
+
+        if ([filterTypes count] > 0) {
+            NSString *extension = [entry pathExtension];
+            BOOL extensionMatches = NO;
+            for (NSString *filter in filterTypes) {
+                if ([extension compare:filter options:NSCaseInsensitiveSearch] == NSOrderedSame) {
+                    extensionMatches = YES;
+                    break;
+                }
+            }
+            if (!extensionMatches)
+                continue;
+        }
+
+        [matches addObject:[base stringByAppendingString:entry]];
+    }
+
+    NSArray *sortedMatches = [matches sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    NSString *completedName = self;
+    if ([sortedMatches count] > 0) {
+        completedName = [sortedMatches objectAtIndex:0];
+        for (NSUInteger i = 1; i < [sortedMatches count]; ++i)
+            completedName = [completedName commonPrefixWithString:[sortedMatches objectAtIndex:i]
+                                                          options:comparison];
+    }
+
+    if (outputName != NULL)
+        *outputName = completedName;
+    if (outputArray != NULL)
+        *outputArray = sortedMatches;
+    return [sortedMatches count];
+}
+
+- (NSString *)stringByAddingPercentEncodingWithAllowedCharacters:(NSCharacterSet *)allowedCharacters
+{
+    if (allowedCharacters == nil) {
+        [NSException raise:NSInvalidArgumentException format:@"allowedCharacters must not be nil"];
+        return nil;
+    }
+
+    NSData *utf8 = [self dataUsingEncoding:NSUTF8StringEncoding];
+    const unsigned char *bytes = [utf8 bytes];
+    NSMutableData *encoded = [NSMutableData dataWithCapacity:[utf8 length] * 3];
+    static const char hex[] = "0123456789ABCDEF";
+
+    for (NSUInteger i = 0; i < [utf8 length]; ++i) {
+        unsigned char byte = bytes[i];
+        if (byte < 0x80 && [allowedCharacters characterIsMember:(unichar)byte]) {
+            [encoded appendBytes:&byte length:1];
+        } else {
+            char escaped[3] = {'%', hex[byte >> 4], hex[byte & 0x0f]};
+            [encoded appendBytes:escaped length:sizeof(escaped)];
+        }
+    }
+
+    return [[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding] autorelease];
+}
+
+- (NSString *)stringByApplyingTransform:(NSStringTransform)transform reverse:(BOOL)reverse
+{
+    if (transform == nil)
+        return nil;
+
+    CFMutableStringRef transformed = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, (CFStringRef)self);
+    if (transformed == NULL)
+        return nil;
+    if (!CFStringTransform(transformed, NULL, (CFStringRef)transform, reverse)) {
+        CFRelease(transformed);
+        return nil;
+    }
+    return [(NSString *)transformed autorelease];
+}
+
+- (void)drawWithRect:(NSRect)rect options:(NSStringDrawingOptions)options attributes:(NSDictionary *)attributes
+{
+    SEL selector = @selector(drawInRect:withAttributes:);
+    if (![self respondsToSelector:selector])
+        return;
+
+    NSMethodSignature *signature = [self methodSignatureForSelector:selector];
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+    [invocation setTarget:self];
+    [invocation setSelector:selector];
+    [invocation setArgument:&rect atIndex:2];
+    [invocation setArgument:&attributes atIndex:3];
+    [invocation invoke];
+    (void)options;
+}
+
+- (NSRect)boundingRectWithSize:(NSSize)size
+                       options:(NSStringDrawingOptions)options
+                    attributes:(NSDictionary *)attributes
+                       context:(NSStringDrawingContext *)context
+{
+    SEL selector = @selector(boundingRectWithSize:options:attributes:);
+    if (![self respondsToSelector:selector])
+        return NSZeroRect;
+
+    NSMethodSignature *signature = [self methodSignatureForSelector:selector];
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+    NSRect result = NSZeroRect;
+    [invocation setTarget:self];
+    [invocation setSelector:selector];
+    [invocation setArgument:&size atIndex:2];
+    [invocation setArgument:&options atIndex:3];
+    [invocation setArgument:&attributes atIndex:4];
+    [invocation invoke];
+    [invocation getReturnValue:&result];
+    (void)context;
+    return result;
 }
 
 @end

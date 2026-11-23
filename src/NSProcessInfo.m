@@ -21,6 +21,7 @@
 #import <unistd.h>
 #import <sys/utsname.h>
 #import <sys/types.h>
+#import <pwd.h>
 #import <sys/sysctl.h>
 #import <mach/mach_time.h>
 #import <stdio.h>
@@ -28,6 +29,8 @@
 #import <objc/objc-internal.h>
 
 extern char ***_NSGetEnviron();
+
+static NSInteger suddenTerminationOptOutCounter = 1;
 
 /*
  TODO: this probably should be more thread safe since some of the underpinnings may not necessarily be
@@ -350,6 +353,42 @@ SINGLETON_RR()
 				return TRUE;
 		}
 	}
+}
+
+- (void)disableSuddenTermination
+{
+    suddenTerminationOptOutCounter++;
+}
+
+- (void)enableSuddenTermination
+{
+    if (suddenTerminationOptOutCounter > 0)
+    {
+        suddenTerminationOptOutCounter--;
+    }
+}
+
+- (void)disableAutomaticTermination:(NSString *)reason
+{
+    (void)reason;
+    automaticTerminationOptOutCounter++;
+}
+
+- (void)enableAutomaticTermination:(NSString *)reason
+{
+    (void)reason;
+    if (automaticTerminationOptOutCounter > 0)
+    {
+        automaticTerminationOptOutCounter--;
+    }
+}
+
+- (NSString *)userName
+{
+    struct passwd *user = getpwuid(getuid());
+    const char *name = (user != NULL) ? user->pw_name : getenv("USER");
+    NSString *userName = (name != NULL) ? [NSString stringWithUTF8String:name] : nil;
+    return userName ?: @"";
 }
 
 - (id)beginActivityWithOptions:(NSUInteger)options reason:(NSString *)reason

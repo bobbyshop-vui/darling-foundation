@@ -28,7 +28,13 @@ FOUNDATION_EXPORT NSString * const NSExtensionPointName;
 
 /* Theres more constants but they are only for iOS */
 
-@interface NSExtensionContext : NSObject
+@class NSError;
+
+@interface NSExtensionContext : NSObject {
+    NSError *_extensionCancellationError;
+}
+
+- (void)cancelRequestWithError:(NSError *)error;
 
 @end
 

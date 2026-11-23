@@ -28,6 +28,7 @@ typedef NS_ENUM(NSUInteger, NSDateFormatterBehavior) {
 + (void)setDefaultFormatterBehavior:(NSDateFormatterBehavior)behavior;
 
 - (id)init;
+- (id)initWithDateFormat:(NSString *)format allowNaturalLanguage:(BOOL)flag;
 - (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string range:(inout NSRange *)rangep error:(out NSError **)error;
 - (NSString *)stringFromDate:(NSDate *)date;
 - (NSDate *)dateFromString:(NSString *)string;
@@ -45,6 +46,7 @@ typedef NS_ENUM(NSUInteger, NSDateFormatterBehavior) {
 // Set and get all CFDate formatter property keys except kCFDateFormatterCalendarName
 - (NSString *)dateFormat;
 - (void)setDateFormat:(NSString *)string;
+- (void)setLocalizedDateFormatFromTemplate:(NSString *)dateFormatTemplate;
 - (NSTimeZone *)timeZone;
 - (void)setTimeZone:(NSTimeZone *)tz;
 - (NSCalendar *)calendar;

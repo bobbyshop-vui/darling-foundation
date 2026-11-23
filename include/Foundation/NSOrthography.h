@@ -6,6 +6,7 @@
 
 @property (readonly) NSString *dominantScript;
 @property (readonly) NSDictionary *languageMap;
+- (instancetype)initWithCoder:(NSCoder *)aDecoder;
 
 @end
 

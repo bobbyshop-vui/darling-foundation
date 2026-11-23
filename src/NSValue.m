@@ -13,6 +13,7 @@
 #import <Foundation/NSPortCoder.h>
 #import "NSCoderInternal.h"
 #import <Foundation/NSRange.h>
+#import <Foundation/NSGeometry.h>
 #include <libkern/OSAtomic.h>
 #include <objc/runtime.h>
 #import "ForFoundationOnly.h"
@@ -488,6 +489,11 @@ static id newDecodedValue(NSCoder *aCoder)
     return [NSValue valueWithBytes:&size objCType:@encode(CGSize)];
 }
 
++ (NSValue *)valueWithEdgeInsets:(NSEdgeInsets)insets
+{
+    return [NSValue valueWithBytes:&insets objCType:@encode(NSEdgeInsets)];
+}
+
 - (id)nonretainedObjectValue
 {
     id obj = nil;
@@ -521,6 +527,13 @@ static id newDecodedValue(NSCoder *aCoder)
     CGPoint pt = {0.0f, 0.0f};
     [self getValue:&pt];
     return pt;
+}
+
+- (NSEdgeInsets)edgeInsetsValue
+{
+    NSEdgeInsets insets = {0.0, 0.0, 0.0, 0.0};
+    [self getValue:&insets];
+    return insets;
 }
 
 - (void *)pointerValue

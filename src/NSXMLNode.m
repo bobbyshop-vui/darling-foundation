@@ -66,6 +66,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return result;
 }
 
++ attributeWithName: (NSString *) name
+                URI: (NSString *) URI
+       stringValue: (NSString *) string
+{
+    NSXMLNode *result = [self attributeWithName: name stringValue: string];
+    [result setURI: URI];
+    return result;
+}
+
 + commentWithStringValue: (NSString *) string {
     NSXMLNode *result =
             [[[self alloc] initWithKind: NSXMLCommentKind] autorelease];
@@ -136,6 +145,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     _kind = kind;
     _options = options;
     _name = nil;
+    _URI = nil;
     _value = @""; // Behavior is empty string not null
     return self;
 }
@@ -144,6 +154,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     _parent = nil;
     [_children release];
     [_name release];
+    [_URI release];
     [_value release];
     [super dealloc];
 }
@@ -152,6 +163,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSXMLNode *copy = NSCopyObject(self, 0, zone);
 
     copy->_name = [_name copy];
+    copy->_URI = [_URI copy];
     copy->_value = [_value copy];
 
     return copy;
@@ -194,8 +206,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSString *) URI {
-    NSUnimplementedMethod();
-    return nil;
+    return _URI;
 }
 
 - objectValue {
@@ -242,6 +253,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     name = [name copy];
     [_name release];
     _name = name;
+}
+
+- (void) setURI: (NSString *) URI {
+    URI = [URI copy];
+    [_URI release];
+    _URI = URI;
 }
 
 - (void) setObjectValue: object {

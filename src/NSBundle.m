@@ -212,7 +212,7 @@ static NSString* frameworkPathForPath(NSString *filePath) {
 + (NSBundle *)bundleForClass:(Class)aClass
 {
     if ([aClass respondsToSelector: @selector(bundleForClass)]) {
-        return [aClass bundleForClass];
+        return [aClass performSelector:@selector(bundleForClass)];
     }
 
     @synchronized (classToBundle) {
@@ -396,6 +396,41 @@ static void __NSBundleMainBundleDealloc()
 - (NSURL *)URLForResource:(NSString *)name withExtension:(NSString *)ext subdirectory:(NSString *)subpath localization:(NSString *)localizationName
 {
     return [(NSURL *)CFBundleCopyResourceURLForLocalization(_cfBundle, (CFStringRef)name, (CFStringRef)ext, (CFStringRef)subpath, (CFStringRef)localizationName) autorelease];
+}
+
++ (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext inDirectory:(NSString *)bundlePath
+{
+    NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
+    return [bundle pathForResource:name ofType:ext];
+}
+
++ (NSArray *)pathsForResourcesOfType:(NSString *)ext inDirectory:(NSString *)bundlePath
+{
+    NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
+    if (bundle == nil)
+    {
+        return [NSArray array];
+    }
+    return [bundle pathsForResourcesOfType:ext inDirectory:nil];
+}
+
+// NSImage is provided by AppKit, which Foundation cannot link against, so the
+// image is created through the runtime when AppKit is loaded.
+- (id)imageForResource:(NSString *)name
+{
+    Class imageClass = NSClassFromString(@"NSImage");
+    if (imageClass == Nil || ![self respondsToSelector:@selector(pathForImageResource:)])
+    {
+        return nil;
+    }
+    NSString *path = [self performSelector:@selector(pathForImageResource:) withObject:name];
+    if (path == nil)
+    {
+        return nil;
+    }
+    id image = [imageClass alloc];
+    image = [image performSelector:@selector(initByReferencingFile:) withObject:path];
+    return [image autorelease];
 }
 
 - (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext

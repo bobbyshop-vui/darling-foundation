@@ -15,6 +15,8 @@
 #import "NSSpellCheckingResult.h"
 #import "NSOrthographyCheckingResult.h"
 #import "NSAddressCheckingResult.h"
+#import <Foundation/NSException.h>
+#import <objc/runtime.h>
 
 NSString * const NSTextCheckingNameKey = @"Name";
 NSString * const NSTextCheckingJobTitleKey = @"JobTitle";
@@ -28,11 +30,156 @@ NSString * const NSTextCheckingPhoneKey = @"Phone";
 NSString * const NSTextCheckingAirlineKey = @"Airline";
 NSString * const NSTextCheckingFlightKey = @"Flight";
 
+static NSRange NSTextCheckingRangeByAddingOffset(NSRange range, NSInteger offset)
+{
+    if (range.location == NSNotFound || offset == 0)
+        return range;
+
+    if (offset < 0) {
+        NSUInteger magnitude = (NSUInteger)(-(offset + 1)) + 1;
+        if (range.location < magnitude)
+            [NSException raise:NSRangeException format:@"Range offset moves the range before index zero"];
+        range.location -= magnitude;
+    } else {
+        NSUInteger magnitude = (NSUInteger)offset;
+        if (range.location > NSUIntegerMax - magnitude)
+            [NSException raise:NSRangeException format:@"Range offset overflows the range location"];
+        range.location += magnitude;
+    }
+    return range;
+}
+
+@interface _NSTextCheckingResultWithRangeOffset : NSTextCheckingResult {
+    NSTextCheckingResult *_originalResult;
+    NSInteger _rangeOffset;
+}
+- (id)initWithResult:(NSTextCheckingResult *)result offset:(NSInteger)offset;
+@end
+
+@implementation _NSTextCheckingResultWithRangeOffset
+- (id)initWithResult:(NSTextCheckingResult *)result offset:(NSInteger)offset
+{
+    self = [super init];
+    if (self) {
+        _originalResult = [result retain];
+        _rangeOffset = offset;
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [_originalResult release];
+    [super dealloc];
+}
+
+- (NSTextCheckingType)resultType
+{
+    return [_originalResult resultType];
+}
+
+- (NSRange)range
+{
+    return [self rangeAtIndex:0];
+}
+
+- (NSUInteger)numberOfRanges
+{
+    return [_originalResult numberOfRanges];
+}
+
+- (NSRange)rangeAtIndex:(NSUInteger)index
+{
+    if (index >= [self numberOfRanges])
+        [NSException raise:NSRangeException format:@"Range index %lu is out of bounds", (unsigned long)index];
+    return NSTextCheckingRangeByAddingOffset([_originalResult rangeAtIndex:index], _rangeOffset);
+}
+
+- (NSTextCheckingResult *)resultByAdjustingRangesWithOffset:(NSInteger)offset
+{
+    if (offset == 0)
+        return [[self retain] autorelease];
+    for (NSUInteger index = 0; index < [self numberOfRanges]; ++index)
+        NSTextCheckingRangeByAddingOffset([self rangeAtIndex:index], offset);
+    return [[[[self class] alloc] initWithResult:self offset:offset] autorelease];
+}
+
+- (NSURL *)URL { return [_originalResult URL]; }
+- (NSDictionary *)components { return [_originalResult components]; }
+- (NSDate *)date { return [_originalResult date]; }
+- (NSTimeInterval)duration { return [_originalResult duration]; }
+- (NSRegularExpression *)regularExpression { return [_originalResult regularExpression]; }
+- (NSString *)replacementString { return [_originalResult replacementString]; }
+- (NSTimeZone *)timeZone { return [_originalResult timeZone]; }
+@end
+
 @implementation NSTextCheckingResult
 
 + (void)initialize
 {
 
+}
+
+- (NSURL *)URL
+{
+    return nil;
+}
+
+- (NSDictionary *)components
+{
+    return nil;
+}
+
+- (NSDate *)date
+{
+    return nil;
+}
+
+- (NSTimeInterval)duration
+{
+    Ivar ivar = class_getInstanceVariable([self class], "_duration");
+    if (ivar == NULL)
+        return 0.0;
+    return *(NSTimeInterval *)((char *)(void *)self + ivar_getOffset(ivar));
+}
+
+- (NSUInteger)numberOfRanges
+{
+    return 1;
+}
+
+- (NSRange)rangeAtIndex:(NSUInteger)index
+{
+    if (index != 0)
+        [NSException raise:NSRangeException format:@"Range index %lu is out of bounds", (unsigned long)index];
+    return [self range];
+}
+
+- (NSRegularExpression *)regularExpression
+{
+    return nil;
+}
+
+- (NSString *)replacementString
+{
+    return nil;
+}
+
+- (NSTextCheckingResult *)resultByAdjustingRangesWithOffset:(NSInteger)offset
+{
+    for (NSUInteger index = 0; index < [self numberOfRanges]; ++index)
+        NSTextCheckingRangeByAddingOffset([self rangeAtIndex:index], offset);
+    return [[[_NSTextCheckingResultWithRangeOffset alloc] initWithResult:self offset:offset] autorelease];
+}
+
+- (NSTimeZone *)timeZone
+{
+    Ivar ivar = class_getInstanceVariable([self class], "_timeZone");
+    if (ivar == NULL)
+        return nil;
+    void *value = NULL;
+    object_getInstanceVariable(self, "_timeZone", &value);
+    return (NSTimeZone *)value;
 }
 
 + (NSTextCheckingResult *)transitInformationCheckingResultWithRange:(NSRange)range components:(NSDictionary *)components
@@ -121,6 +268,18 @@ NSString * const NSTextCheckingFlightKey = @"Flight";
     return [self retain];
 }
 
+
+@end
+
+@implementation NSAddressCheckingResult (NSTextCheckingResultRangeAdjustment)
+
+/* NSAddressCheckingResult's legacy implementation only logged and returned nil. */
+- (NSTextCheckingResult *)resultByAdjustingRangesWithOffset:(NSInteger)offset
+{
+    for (NSUInteger index = 0; index < [self numberOfRanges]; ++index)
+        NSTextCheckingRangeByAddingOffset([self rangeAtIndex:index], offset);
+    return [[[_NSTextCheckingResultWithRangeOffset alloc] initWithResult:self offset:offset] autorelease];
+}
 
 @end
 

@@ -359,6 +359,15 @@ static NSData *keyedMagic;
 
 // Invocations.
 
+- (NSDictionary *) statistics {
+    return @{
+        @"NSConnectionRepliesReceived": @(__atomic_load_n(&_statRepliesReceived, __ATOMIC_RELAXED)),
+        @"NSConnectionRepliesSent": @(__atomic_load_n(&_statRepliesSent, __ATOMIC_RELAXED)),
+        @"NSConnectionRequestsReceived": @(__atomic_load_n(&_statRequestsReceived, __ATOMIC_RELAXED)),
+        @"NSConnectionRequestsSent": @(__atomic_load_n(&_statRequestsSent, __ATOMIC_RELAXED)),
+    };
+}
+
 - (void) sendInvocation: (NSInvocation *) invocation {
     [self sendInvocation: invocation internal: NO];
 }
@@ -403,6 +412,7 @@ static NSData *keyedMagic;
 
         NSDOLog(@"going to send the request");
         [self _sendUsingCoder: coder];
+        __atomic_fetch_add(&_statRequestsSent, 1, __ATOMIC_RELAXED);
         [coder invalidate];
 
         if (isOneway) {
@@ -530,6 +540,7 @@ static NSData *keyedMagic;
 
     [self encodeReleasedProxies: coder];
     [self _sendUsingCoder: coder];
+    __atomic_fetch_add(&_statRepliesSent, 1, __ATOMIC_RELAXED);
     [coder invalidate];
     [coder release];
 }
@@ -740,9 +751,11 @@ static NSData *keyedMagic;
 
         switch (magic) {
         case NSConnectionMessageMagicRequest:
+            __atomic_fetch_add(&_statRequestsReceived, 1, __ATOMIC_RELAXED);
             [self handleRequest: coder sequenceNumber: sequenceNumber];
             break;
         case NSConnectionMessageMagicReply:
+            __atomic_fetch_add(&_statRepliesReceived, 1, __ATOMIC_RELAXED);
             @synchronized (_sequenceNumberToCoder) {
                 _sequenceNumberToCoder[@(sequenceNumber)] = coder;
             }

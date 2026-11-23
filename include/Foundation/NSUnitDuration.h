@@ -2,4 +2,6 @@
 
 @interface NSUnitDuration : NSDimension
 
+@property (class, readonly, copy) NSUnitDuration *minutes;
+
 @end

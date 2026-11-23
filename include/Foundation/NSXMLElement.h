@@ -44,6 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) setAttributes: (NSArray *) attributes;
 - (void) setAttributesAsDictionary: (NSDictionary *) attributes;
+- (void) setAttributesWithDictionary: (NSDictionary *) attributes;
 - (void) setChildren: (NSArray *) children;
 - (void) setNamespaces: (NSArray *) namespaces;
 

@@ -19,6 +19,11 @@
 
 #import <Foundation/NSObject.h>
 
-@interface NSScriptExecutionContext : NSObject
+@interface NSScriptExecutionContext : NSObject {
+	id _topLevelObject;
+}
+
+- (void)setTopLevelObject:(id)object;
+- (id)topLevelObject;
 
 @end

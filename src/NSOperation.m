@@ -22,6 +22,7 @@
 
 #import "CFSortFunctions.h"
 #import "ForFoundationOnly.h"
+#import "NSArrayInternal.h"
 
 enum __NSOperationState {
     NSOperationStateReady,
@@ -55,6 +56,7 @@ typedef NSUInteger _NSOperationState;
     NSMutableArray *_dependencies;
     NSMutableSet *_inverse_dependencies;
     NSRecursiveLock *_dependencyLock;
+    NSString *_name;
     BOOL _hasExecuted;
     _NSOperationState _state;
     BOOL _cancelled;
@@ -104,6 +106,7 @@ static pthread_mutex_t _NSOperationLock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
         _dependencies = [[NSMutableArray alloc] initWithCapacity:2];
         _inverse_dependencies = [[NSMutableSet alloc] initWithCapacity:2];
         _dependencyLock = [[NSRecursiveLock alloc] init];
+        _name = nil;
         _hasExecuted = NO;
         _state = NSOperationStateReady; //every operation starts ready until you add a depedency to make it not ready
         _cancelled = NO;
@@ -131,6 +134,8 @@ static pthread_mutex_t _NSOperationLock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
     _dependencies = nil;
     [_dependencyLock release];
     _dependencyLock = nil;
+    [_name release];
+    _name = nil;
     _operation = nil;
     [super dealloc];
 }
@@ -559,6 +564,23 @@ static NSString const *NSOperationQueueKey = @"NSOperationQueue";
 {
     //legacy. left around for 10.5 users.
     return NO;
+}
+
+- (BOOL)isAsynchronous
+{
+    return NO;
+}
+
+- (NSString *)name
+{
+    return _internal->_name;
+}
+
+- (void)setName:(NSString *)name
+{
+    NSString *copy = [name copy];
+    [_internal->_name release];
+    _internal->_name = copy;
 }
 
 /** depedencies */

@@ -19,9 +19,26 @@
 
 #import <Foundation/NSObject.h>
 #import <Foundation/NSDate.h>
+#import <Foundation/NSCoder.h>
 
 @interface NSDateInterval : NSObject <NSCopying, NSSecureCoding>
+{
+    NSDate *_startDate;
+    NSTimeInterval _duration;
+}
 
+@property (readonly, copy) NSDate *startDate;
+@property (readonly, copy) NSDate *endDate;
 @property (readonly) NSTimeInterval duration;
+
+- (instancetype)init;
+- (instancetype)initWithCoder:(NSCoder *)coder;
+- (instancetype)initWithStartDate:(NSDate *)startDate duration:(NSTimeInterval)duration;
+- (instancetype)initWithStartDate:(NSDate *)startDate endDate:(NSDate *)endDate;
+- (NSComparisonResult)compare:(NSDateInterval *)dateInterval;
+- (BOOL)isEqualToDateInterval:(NSDateInterval *)dateInterval;
+- (BOOL)intersectsDateInterval:(NSDateInterval *)dateInterval;
+- (NSDateInterval *)intersectionWithDateInterval:(NSDateInterval *)dateInterval;
+- (BOOL)containsDate:(NSDate *)date;
 
 @end

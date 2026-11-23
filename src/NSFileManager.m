@@ -14,6 +14,9 @@
 #import <stdlib.h>
 #import <sys/param.h>
 #import <sys/mount.h>
+#import <sys/stat.h>
+#import <fcntl.h>
+#import <string.h>
 #import <copyfile.h>
 #import <CoreFoundation/CFURL.h>
 #import <MacTypes.h> // for kUnknownType
@@ -884,13 +887,13 @@ static NSError *_NSErrorWithFilePathAndErrno(id path, int code)
     BOOL shouldLink = YES;
     if (_flags.shouldLinkItemAtPathToPath)
     {
-        shouldLink = [_delegate fileManager:self shouldLinkItemAtPath:path toPath:destPath];
+        shouldLink = [_delegate fileManager:self shouldLinkItemAtPath:destPath toPath:path];
     }
     if (!shouldLink)
     {
         return NO;
     }
-    int err = symlink([path UTF8String], [destPath UTF8String]);
+    int err = symlink([destPath fileSystemRepresentation], [path fileSystemRepresentation]);
     if (err == -1)
     {
         if (error)
@@ -1071,6 +1074,430 @@ static inline NSStringEncoding defaultEncoding()
 - (NSString *)stringWithFileSystemRepresentation:(const char *)str length:(NSUInteger)len
 {
     return [[[NSString alloc] initWithBytes:str length:len encoding:defaultEncoding()] autorelease];
+}
+
+#pragma mark - Links
+
+- (BOOL)createSymbolicLinkAtPath:(NSString *)path pathContent:(NSString *)otherpath
+{
+    return [self createSymbolicLinkAtPath:path withDestinationPath:otherpath error:nil];
+}
+
+- (BOOL)createSymbolicLinkAtURL:(NSURL *)url withDestinationURL:(NSURL *)destURL error:(NSError **)error
+{
+    return [self createSymbolicLinkAtPath:[url path] withDestinationPath:[destURL path] error:error];
+}
+
+- (NSString *)pathContentOfSymbolicLinkAtPath:(NSString *)path
+{
+    char buffer[PATH_MAX + 1];
+    ssize_t length = readlink([path fileSystemRepresentation], buffer, PATH_MAX);
+    if (length < 0)
+    {
+        return nil;
+    }
+    return [self stringWithFileSystemRepresentation:buffer length:(NSUInteger)length];
+}
+
+- (BOOL)linkItemAtPath:(NSString *)srcPath toPath:(NSString *)dstPath error:(NSError **)error
+{
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+    if (srcPath == nil || dstPath == nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
+        }
+        return NO;
+    }
+    if (_flags.shouldLinkItemAtPathToPath && ![_delegate fileManager:self shouldLinkItemAtPath:srcPath toPath:dstPath])
+    {
+        return YES;
+    }
+    if (link([srcPath fileSystemRepresentation], [dstPath fileSystemRepresentation]) != 0)
+    {
+        int code = errno;
+        NSError *linkError = _NSErrorWithFilePathAndErrno(srcPath, code);
+        if (_flags.shouldProceedAfterErrorLinkingItemAtPathToPath &&
+            [_delegate fileManager:self shouldProceedAfterError:linkError linkingItemAtPath:srcPath toPath:dstPath])
+        {
+            return YES;
+        }
+        if (error != NULL)
+        {
+            *error = linkError;
+        }
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)linkItemAtURL:(NSURL *)srcURL toURL:(NSURL *)dstURL error:(NSError **)error
+{
+    return [self linkItemAtPath:[srcURL path] toPath:[dstURL path] error:error];
+}
+
+#pragma mark - Comparison
+
+static BOOL _NSFileContentsEqual(NSFileManager *self, NSString *path1, NSString *path2)
+{
+    struct stat s1, s2;
+    if (lstat([path1 fileSystemRepresentation], &s1) != 0 || lstat([path2 fileSystemRepresentation], &s2) != 0)
+    {
+        return NO;
+    }
+    if (s1.st_dev == s2.st_dev && s1.st_ino == s2.st_ino)
+    {
+        return YES;
+    }
+    if ((s1.st_mode & S_IFMT) != (s2.st_mode & S_IFMT))
+    {
+        return NO;
+    }
+
+    switch (s1.st_mode & S_IFMT)
+    {
+        case S_IFREG:
+        {
+            if (s1.st_size != s2.st_size)
+            {
+                return NO;
+            }
+            FILE *f1 = fopen([path1 fileSystemRepresentation], "rb");
+            FILE *f2 = fopen([path2 fileSystemRepresentation], "rb");
+            BOOL equal = (f1 != NULL && f2 != NULL);
+            if (equal)
+            {
+                char buf1[8192], buf2[8192];
+                while (equal)
+                {
+                    size_t n1 = fread(buf1, 1, sizeof(buf1), f1);
+                    size_t n2 = fread(buf2, 1, sizeof(buf2), f2);
+                    if (n1 != n2 || memcmp(buf1, buf2, n1) != 0)
+                    {
+                        equal = NO;
+                    }
+                    else if (n1 == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            if (f1 != NULL)
+            {
+                fclose(f1);
+            }
+            if (f2 != NULL)
+            {
+                fclose(f2);
+            }
+            return equal;
+        }
+
+        case S_IFLNK:
+        {
+            NSString *d1 = [self pathContentOfSymbolicLinkAtPath:path1];
+            NSString *d2 = [self pathContentOfSymbolicLinkAtPath:path2];
+            return d1 != nil && [d1 isEqualToString:d2];
+        }
+
+        case S_IFDIR:
+        {
+            NSArray *c1 = [[self contentsOfDirectoryAtPath:path1 error:NULL] sortedArrayUsingSelector:@selector(compare:)];
+            NSArray *c2 = [[self contentsOfDirectoryAtPath:path2 error:NULL] sortedArrayUsingSelector:@selector(compare:)];
+            if (c1 == nil || c2 == nil || ![c1 isEqualToArray:c2])
+            {
+                return NO;
+            }
+            for (NSString *name in c1)
+            {
+                if (!_NSFileContentsEqual(self, [path1 stringByAppendingPathComponent:name], [path2 stringByAppendingPathComponent:name]))
+                {
+                    return NO;
+                }
+            }
+            return YES;
+        }
+
+        default:
+            // Devices, sockets and fifos have no comparable contents.
+            return s1.st_rdev == s2.st_rdev;
+    }
+}
+
+- (BOOL)contentsEqualAtPath:(NSString *)path1 andPath:(NSString *)path2
+{
+    if (path1 == nil || path2 == nil)
+    {
+        return NO;
+    }
+    return _NSFileContentsEqual(self, path1, path2);
+}
+
+#pragma mark - Legacy handler based operations
+
+static NSDictionary *_NSLegacyErrorInfo(NSError *error, NSString *path, NSString *toPath)
+{
+    NSMutableDictionary *info = [NSMutableDictionary dictionary];
+    NSString *reason = [error localizedDescription];
+    if (reason == nil)
+    {
+        reason = @"Unknown error";
+    }
+    [info setObject:reason forKey:@"Error"];
+    if (path != nil)
+    {
+        [info setObject:path forKey:@"Path"];
+    }
+    if (toPath != nil)
+    {
+        [info setObject:toPath forKey:@"ToPath"];
+    }
+    return info;
+}
+
+- (BOOL)_legacyFinishWithResult:(BOOL)result error:(NSError *)error path:(NSString *)path toPath:(NSString *)toPath handler:(id)handler
+{
+    if (result)
+    {
+        return YES;
+    }
+    if (handler != nil && [handler respondsToSelector:@selector(fileManager:shouldProceedAfterError:)])
+    {
+        // The handler decides whether the failure is fatal. The operation itself still failed.
+        [handler fileManager:self shouldProceedAfterError:_NSLegacyErrorInfo(error, path, toPath)];
+    }
+    return NO;
+}
+
+- (BOOL)copyPath:(NSString *)src toPath:(NSString *)dest handler:(id)handler
+{
+    if (handler != nil && [handler respondsToSelector:@selector(fileManager:willProcessPath:)])
+    {
+        [handler fileManager:self willProcessPath:src];
+    }
+    NSError *error = nil;
+    BOOL result = [self copyItemAtPath:src toPath:dest error:&error];
+    return [self _legacyFinishWithResult:result error:error path:src toPath:dest handler:handler];
+}
+
+- (BOOL)movePath:(NSString *)src toPath:(NSString *)dest handler:(id)handler
+{
+    if (handler != nil && [handler respondsToSelector:@selector(fileManager:willProcessPath:)])
+    {
+        [handler fileManager:self willProcessPath:src];
+    }
+    NSError *error = nil;
+    BOOL result = [self moveItemAtPath:src toPath:dest error:&error];
+    return [self _legacyFinishWithResult:result error:error path:src toPath:dest handler:handler];
+}
+
+- (BOOL)removeFileAtPath:(NSString *)path handler:(id)handler
+{
+    if (handler != nil && [handler respondsToSelector:@selector(fileManager:willProcessPath:)])
+    {
+        [handler fileManager:self willProcessPath:path];
+    }
+    NSError *error = nil;
+    BOOL result = [self removeItemAtPath:path error:&error];
+    return [self _legacyFinishWithResult:result error:error path:path toPath:nil handler:handler];
+}
+
+#pragma mark - Well known locations
+
+- (NSURL *)homeDirectoryForCurrentUser
+{
+    return [NSURL fileURLWithPath:NSHomeDirectory() isDirectory:YES];
+}
+
+- (NSURL *)temporaryDirectory
+{
+    return [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
+}
+
+#pragma mark - Trash and replace
+
+// Moves src to dst, falling back to copy and remove when they live on different file systems.
+- (BOOL)_moveItemAtPath:(NSString *)src toPathAllowingCrossDevice:(NSString *)dst error:(NSError **)error
+{
+    if (rename([src fileSystemRepresentation], [dst fileSystemRepresentation]) == 0)
+    {
+        return YES;
+    }
+    int code = errno;
+    if (code == EXDEV)
+    {
+        NSError *copyError = nil;
+        if ([self copyItemAtPath:src toPath:dst error:&copyError] && [self removeItemAtPath:src error:&copyError])
+        {
+            return YES;
+        }
+        if (error != NULL)
+        {
+            *error = copyError;
+        }
+        return NO;
+    }
+    if (error != NULL)
+    {
+        *error = _NSErrorWithFilePathAndErrno(src, code);
+    }
+    return NO;
+}
+
+- (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL error:(NSError **)error
+{
+    if (outResultingURL != NULL)
+    {
+        *outResultingURL = nil;
+    }
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+    NSString *path = [url path];
+    if (path == nil || ![url isFileURL])
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
+        }
+        return NO;
+    }
+
+    struct stat st;
+    if (lstat([path fileSystemRepresentation], &st) != 0)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:@{ NSFilePathErrorKey: path }];
+        }
+        return NO;
+    }
+
+    NSString *trashPath = [NSHomeDirectory() stringByAppendingPathComponent:@".Trash"];
+    if (![self fileExistsAtPath:trashPath] && ![self createDirectoryAtPath:trashPath withIntermediateDirectories:YES attributes:@{ NSFilePosixPermissions: @0700 } error:error])
+    {
+        return NO;
+    }
+
+    NSString *name = [path lastPathComponent];
+    NSString *base = [name stringByDeletingPathExtension];
+    NSString *extension = [name pathExtension];
+    NSString *destination = [trashPath stringByAppendingPathComponent:name];
+    NSUInteger counter = 2;
+    while (lstat([destination fileSystemRepresentation], &st) == 0)
+    {
+        NSString *candidate = [NSString stringWithFormat:@"%@ %lu", base, (unsigned long)counter++];
+        if ([extension length] > 0)
+        {
+            candidate = [candidate stringByAppendingPathExtension:extension];
+        }
+        destination = [trashPath stringByAppendingPathComponent:candidate];
+    }
+
+    if (![self _moveItemAtPath:path toPathAllowingCrossDevice:destination error:error])
+    {
+        return NO;
+    }
+    if (outResultingURL != NULL)
+    {
+        *outResultingURL = [NSURL fileURLWithPath:destination];
+    }
+    return YES;
+}
+
+- (BOOL)replaceItemAtURL:(NSURL *)originalItemURL withItemAtURL:(NSURL *)newItemURL backupItemName:(NSString *)backupItemName options:(NSFileManagerItemReplacementOptions)options resultingItemURL:(NSURL **)resultingURL error:(NSError **)error
+{
+    if (resultingURL != NULL)
+    {
+        *resultingURL = nil;
+    }
+    if (error != NULL)
+    {
+        *error = nil;
+    }
+
+    NSString *original = [originalItemURL path];
+    NSString *replacement = [newItemURL path];
+    if (original == nil || replacement == nil)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
+        }
+        return NO;
+    }
+
+    struct stat st;
+    if (lstat([replacement fileSystemRepresentation], &st) != 0)
+    {
+        if (error != NULL)
+        {
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:@{ NSFilePathErrorKey: replacement }];
+        }
+        return NO;
+    }
+
+    BOOL originalExists = (lstat([original fileSystemRepresentation], &st) == 0);
+    if (!originalExists)
+    {
+        if (![self _moveItemAtPath:replacement toPathAllowingCrossDevice:original error:error])
+        {
+            return NO;
+        }
+    }
+    else if (backupItemName != nil)
+    {
+        NSString *backup = [[original stringByDeletingLastPathComponent] stringByAppendingPathComponent:backupItemName];
+        if (lstat([backup fileSystemRepresentation], &st) == 0 && ![self removeItemAtPath:backup error:error])
+        {
+            return NO;
+        }
+        if (![self _moveItemAtPath:original toPathAllowingCrossDevice:backup error:error])
+        {
+            return NO;
+        }
+        if (![self _moveItemAtPath:replacement toPathAllowingCrossDevice:original error:error])
+        {
+            // Put the original back so a failed replace leaves things as they were.
+            [self _moveItemAtPath:backup toPathAllowingCrossDevice:original error:NULL];
+            return NO;
+        }
+        if ((options & NSFileManagerItemReplacementWithoutDeletingBackupItem) == 0)
+        {
+            [self removeItemAtPath:backup error:NULL];
+        }
+    }
+    else
+    {
+        // rename(2) atomically replaces a file, or an empty directory of the same kind.
+        BOOL renamed = (rename([replacement fileSystemRepresentation], [original fileSystemRepresentation]) == 0);
+        if (!renamed)
+        {
+            // Directories and cross device moves: stage the original aside, then swap.
+            NSString *staging = [original stringByAppendingFormat:@".%d.replaced", (int)getpid()];
+            if (![self _moveItemAtPath:original toPathAllowingCrossDevice:staging error:error])
+            {
+                return NO;
+            }
+            if (![self _moveItemAtPath:replacement toPathAllowingCrossDevice:original error:error])
+            {
+                [self _moveItemAtPath:staging toPathAllowingCrossDevice:original error:NULL];
+                return NO;
+            }
+            [self removeItemAtPath:staging error:NULL];
+        }
+    }
+
+    if (resultingURL != NULL)
+    {
+        *resultingURL = originalItemURL;
+    }
+    return YES;
 }
 
 @end

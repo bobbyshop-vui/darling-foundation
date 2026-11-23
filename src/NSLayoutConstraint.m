@@ -1,41 +1,158 @@
-/*
- This file is part of Darling.
-
- Copyright (C) 2019 Lubos Dolezel
-
- Darling is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
-
- Darling is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with Darling.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #import <Foundation/NSLayoutConstraint.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSException.h>
 
-#warning TODO: $ld$hide$os 10.4 through 10.7, also METACLASS
+@interface NSLayoutAnchor (NSLayoutAnchorInternal)
+- (instancetype)initWithItem:(id)item attribute:(NSLayoutAttribute)attribute name:(NSString *)name;
+@end
 
 @implementation NSLayoutConstraint
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
-
-- (id)initWithCoder:(NSCoder *)coder {
-    NSLog(@"Stub called: initWithCoder in NSLayoutConstraint");
+- (instancetype)init
+{
+    self = [super init];
+    if (self != nil)
+    {
+        _multiplier = 1.0;
+        _priority = 1000.0;
+        _active = NO;
+        _shouldBeArchived = NO;
+    }
     return self;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (void)dealloc
+{
+    [_firstItem release];
+    [_secondItem release];
+    [_identifier release];
+    [super dealloc];
+}
+
++ (NSLayoutConstraint *)constraintWithItem:(id)firstItem attribute:(NSLayoutAttribute)firstAttribute relatedBy:(NSLayoutRelation)relation toItem:(id)secondItem attribute:(NSLayoutAttribute)secondAttribute multiplier:(CGFloat)multiplier constant:(CGFloat)constant
+{
+    NSLayoutConstraint *constraint = [[[self alloc] init] autorelease];
+    constraint->_firstItem = [firstItem retain];
+    constraint->_firstAttribute = firstAttribute;
+    constraint->_relation = relation;
+    constraint->_secondItem = [secondItem retain];
+    constraint->_secondAttribute = secondAttribute;
+    constraint->_multiplier = multiplier;
+    constraint->_constant = constant;
+    return constraint;
+}
+
++ (void)activateConstraints:(NSArray *)constraints
+{
+    for (NSLayoutConstraint *constraint in constraints)
+    {
+        [constraint setActive:YES];
+    }
+}
+
++ (void)deactivateConstraints:(NSArray *)constraints
+{
+    for (NSLayoutConstraint *constraint in constraints)
+    {
+        [constraint setActive:NO];
+    }
+}
+
+- (CGFloat)constant
+{
+    return _constant;
+}
+
+- (NSLayoutAnchor *)firstAnchor
+{
+    return [[[NSLayoutAnchor alloc] initWithItem:_firstItem attribute:_firstAttribute name:nil] autorelease];
+}
+
+- (NSLayoutAttribute)firstAttribute
+{
+    return _firstAttribute;
+}
+
+- (id)firstItem
+{
+    return _firstItem;
+}
+
+- (NSString *)identifier
+{
+    return _identifier;
+}
+
+- (BOOL)isActive
+{
+    return _active;
+}
+
+- (CGFloat)multiplier
+{
+    return _multiplier;
+}
+
+- (NSLayoutPriority)priority
+{
+    return _priority;
+}
+
+- (NSLayoutRelation)relation
+{
+    return _relation;
+}
+
+- (NSLayoutAnchor *)secondAnchor
+{
+    if (_secondItem == nil || _secondAttribute == NSLayoutAttributeNotAnAttribute)
+    {
+        return nil;
+    }
+    return [[[NSLayoutAnchor alloc] initWithItem:_secondItem attribute:_secondAttribute name:nil] autorelease];
+}
+
+- (NSLayoutAttribute)secondAttribute
+{
+    return _secondAttribute;
+}
+
+- (id)secondItem
+{
+    return _secondItem;
+}
+
+- (void)setActive:(BOOL)active
+{
+    _active = active;
+}
+
+- (void)setConstant:(CGFloat)constant
+{
+    _constant = constant;
+}
+
+- (void)setIdentifier:(NSString *)identifier
+{
+    if (_identifier != identifier)
+    {
+        [_identifier release];
+        _identifier = [identifier copy];
+    }
+}
+
+- (void)setPriority:(NSLayoutPriority)priority
+{
+    _priority = priority;
+}
+
+- (void)setShouldBeArchived:(BOOL)shouldBeArchived
+{
+    _shouldBeArchived = shouldBeArchived;
+}
+
+- (BOOL)shouldBeArchived
+{
+    return _shouldBeArchived;
 }
 
 @end

@@ -18,28 +18,73 @@
 */
 
 #import <Foundation/NSScriptCommand.h>
-#import <Foundation/NSMethodSignature.h>
-#import <Foundation/NSInvocation.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSCoder.h>
 
 @implementation NSScriptCommand
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
++ (NSScriptCommand *)currentCommand
+{
+    return nil;
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+- (void)dealloc
+{
+    [_arguments release];
+    [_scriptErrorString release];
+    [super dealloc];
+}
+
+- (NSDictionary *)arguments
+{
+    return _arguments ? _arguments : [NSDictionary dictionary];
+}
+
+- (NSDictionary *)evaluatedArguments
+{
+    return [self arguments];
+}
+
+- (id)performDefaultImplementation
+{
+    return nil;
+}
+
+- (void)setArguments:(NSDictionary *)arguments
+{
+    NSDictionary *copy = [arguments copy];
+    [_arguments release];
+    _arguments = copy;
+}
+
+- (void)setScriptErrorNumber:(NSInteger)errorNumber
+{
+    _scriptErrorNumber = errorNumber;
+}
+
+- (void)setScriptErrorString:(NSString *)errorString
+{
+    NSString *copy = [errorString copy];
+    [_scriptErrorString release];
+    _scriptErrorString = copy;
 }
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder
 {
-	NSLog(@"[NSScriptCommand initWithCoder:]");
-	return [self init];
+	if (!(self = [super init]))
+		return nil;
+	_arguments = [[aDecoder decodeObjectForKey:@"arguments"] copy];
+	_scriptErrorNumber = [aDecoder decodeIntegerForKey:@"scriptErrorNumber"];
+	_scriptErrorString = [[aDecoder decodeObjectForKey:@"scriptErrorString"] copy];
+	return self;
 }
 
 - (void)encodeWithCoder:(NSCoder *)aCoder
 {
-	NSLog(@"[NSScriptCommand encodeWithCoder:");
+	[aCoder encodeObject:_arguments forKey:@"arguments"];
+	[aCoder encodeInteger:_scriptErrorNumber forKey:@"scriptErrorNumber"];
+	[aCoder encodeObject:_scriptErrorString forKey:@"scriptErrorString"];
 }
 
 @end

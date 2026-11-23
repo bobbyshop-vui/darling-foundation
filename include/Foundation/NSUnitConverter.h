@@ -2,4 +2,7 @@
 
 @interface NSUnitConverter : NSObject
 
+- (double)baseUnitValueFromValue:(double)value;
+- (double)valueFromBaseUnitValue:(double)baseUnitValue;
+
 @end

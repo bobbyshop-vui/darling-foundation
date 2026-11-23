@@ -79,6 +79,7 @@ typedef struct __CFBundle *CFBundleRef;
 + (NSArray *)preferredLocalizationsFromArray:(NSArray *)localizationsArray;
 + (NSArray *)preferredLocalizationsFromArray:(NSArray *)localizationsArray forPreferences:(NSArray *)preferencesArray;
 - (NSArray *)executableArchitectures;
+- (id)imageForResource:(NSString *)name;
 
 @end
 

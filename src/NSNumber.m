@@ -139,6 +139,11 @@ static inline id newDecodedNumber(NSCoder *coder)
     }
 }
 
+static inline BOOL NSNumberIsBooleanValue(NSNumber *number)
+{
+    return (id)number == (id)kCFBooleanTrue || (id)number == (id)kCFBooleanFalse;
+}
+
 @implementation NSNumber
 
 - (Class)classForCoder
@@ -154,6 +159,184 @@ static inline id newDecodedNumber(NSCoder *coder)
 - (NSUInteger)unsignedIntegerValue
 {
     return (NSUInteger)[self unsignedLongValue];
+}
+
+- (char)charValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (char)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    char value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberSInt8Type, &value);
+    return value;
+}
+
+- (unsigned char)unsignedCharValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (unsigned char)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    unsigned char value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberCharType, &value);
+    return value;
+}
+
+- (short)shortValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (short)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    short value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberSInt16Type, &value);
+    return value;
+}
+
+- (unsigned short)unsignedShortValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (unsigned short)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    unsigned short value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberShortType, &value);
+    return value;
+}
+
+- (int)intValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (int)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    int value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberSInt32Type, &value);
+    return value;
+}
+
+- (unsigned int)unsignedIntValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (unsigned int)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    unsigned int value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberIntType, &value);
+    return value;
+}
+
+- (long)longValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (long)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    long value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberLongType, &value);
+    return value;
+}
+
+- (unsigned long)unsignedLongValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (unsigned long)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    unsigned long value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberLongType, &value);
+    return value;
+}
+
+- (long long)longLongValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (long long)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    long long value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberLongLongType, &value);
+    return value;
+}
+
+- (unsigned long long)unsignedLongLongValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (unsigned long long)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    unsigned long long value = 0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberLongLongType, &value);
+    return value;
+}
+
+- (float)floatValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (float)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    float value = 0.0f;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberFloat32Type, &value);
+    return value;
+}
+
+- (double)doubleValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return (double)CFBooleanGetValue((CFBooleanRef)self);
+    }
+    double value = 0.0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberFloat64Type, &value);
+    return value;
+}
+
+- (BOOL)boolValue
+{
+    if (NSNumberIsBooleanValue(self))
+    {
+        return CFBooleanGetValue((CFBooleanRef)self);
+    }
+    double value = 0.0;
+    CFNumberGetValue((CFNumberRef)self, kCFNumberFloat64Type, &value);
+    return value != 0.0;
+}
+
+- (NSString *)descriptionWithLocale:(id)locale
+{
+    switch (*[self objCType])
+    {
+        case _C_CHR:
+            return [[[NSString alloc] initWithFormat:@"%i" locale:locale, (int)[self charValue]] autorelease];
+        case _C_UCHR:
+            return [[[NSString alloc] initWithFormat:@"%u" locale:locale, (unsigned int)[self unsignedCharValue]] autorelease];
+        case _C_SHT:
+            return [[[NSString alloc] initWithFormat:@"%hi" locale:locale, (int)[self shortValue]] autorelease];
+        case _C_USHT:
+            return [[[NSString alloc] initWithFormat:@"%hu" locale:locale, (unsigned int)[self unsignedShortValue]] autorelease];
+        case _C_INT:
+            return [[[NSString alloc] initWithFormat:@"%i" locale:locale, [self intValue]] autorelease];
+        case _C_UINT:
+            return [[[NSString alloc] initWithFormat:@"%u" locale:locale, [self unsignedIntValue]] autorelease];
+        case _C_LNG:
+            return [[[NSString alloc] initWithFormat:@"%li" locale:locale, [self longValue]] autorelease];
+        case _C_ULNG:
+            return [[[NSString alloc] initWithFormat:@"%lu" locale:locale, [self unsignedLongValue]] autorelease];
+        case _C_LNG_LNG:
+            return [[[NSString alloc] initWithFormat:@"%lli" locale:locale, [self longLongValue]] autorelease];
+        case _C_ULNG_LNG:
+            return [[[NSString alloc] initWithFormat:@"%llu" locale:locale, [self unsignedLongLongValue]] autorelease];
+        case _C_FLT:
+            return [[[NSString alloc] initWithFormat:@"%0.7g" locale:locale, (double)[self floatValue]] autorelease];
+        case _C_DBL:
+            return [[[NSString alloc] initWithFormat:@"%0.16g" locale:locale, [self doubleValue]] autorelease];
+        case _C_BOOL:
+            return [[[NSString alloc] initWithFormat:@"%i" locale:locale, (int)[self boolValue]] autorelease];
+        default:
+            return [self description];
+    }
 }
 
 - (NSDecimal)decimalValue

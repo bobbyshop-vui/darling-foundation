@@ -66,6 +66,7 @@ enum {
     NSXMLNodeKind _kind;
     NSUInteger _options;
     NSString *_name;
+    NSString *_URI;
     id _value;
 }
 
@@ -79,6 +80,9 @@ enum {
 + (id) elementWithName: (NSString *) name stringValue: (NSString *) string;
 
 + (id) attributeWithName: (NSString *) name stringValue: (NSString *) string;
++ (id) attributeWithName: (NSString *) name
+                    URI: (NSString *) URI
+           stringValue: (NSString *) string;
 
 + (id) commentWithStringValue: (NSString *) string;
 + (id) textWithStringValue: (NSString *) string;
@@ -117,6 +121,7 @@ enum {
 - (NSXMLNode *) childAtIndex: (NSUInteger) index;
 
 - (void) setName: (NSString *) name;
+- (void) setURI: (NSString *) URI;
 - (void) setObjectValue: object;
 - (void) setStringValue: (NSString *) string;
 - (void) setStringValue: (NSString *) string

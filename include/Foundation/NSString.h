@@ -3,9 +3,14 @@ typedef unsigned short unichar;
 #import <limits.h>
 #import <Foundation/NSObject.h>
 #import <Foundation/NSRange.h>
+#import <Foundation/NSGeometry.h>
 #import <stdarg.h>
 
-@class NSData, NSArray, NSDictionary, NSCharacterSet, NSURL, NSError, NSLocale;
+@class NSString, NSData, NSArray, NSDictionary, NSCharacterSet, NSURL, NSError, NSLocale;
+@class NSStringDrawingContext;
+
+typedef NSInteger NSStringDrawingOptions;
+typedef NSString *NSStringTransform;
 
 FOUNDATION_EXPORT NSString * const NSParseErrorException;
 
@@ -190,6 +195,18 @@ FOUNDATION_EXPORT NSString * const NSCharacterConversionException;
 - (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError **)error;
 - (BOOL)writeToFile:(NSString *)path atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError **)error;
 - (BOOL)containsString:(NSString *)string;
+- (BOOL)localizedCaseInsensitiveContainsString:(NSString *)string;
+- (BOOL)localizedStandardContainsString:(NSString *)string;
+- (NSRange)localizedStandardRangeOfString:(NSString *)string;
+- (NSString *)localizedUppercaseString;
+- (NSString *)localizedLowercaseString;
+- (NSString *)localizedCapitalizedString;
+- (NSUInteger)completePathIntoString:(NSString **)outputName caseSensitive:(BOOL)caseSensitive matchesIntoArray:(NSArray **)outputArray filterTypes:(NSArray *)filterTypes;
+- (NSString *)stringByAddingPercentEncodingWithAllowedCharacters:(NSCharacterSet *)allowedCharacters;
+- (NSString *)stringByApplyingTransform:(NSStringTransform)transform reverse:(BOOL)reverse;
+
+- (void)drawWithRect:(NSRect)rect options:(NSStringDrawingOptions)options attributes:(NSDictionary *)attributes;
+- (NSRect)boundingRectWithSize:(NSSize)size options:(NSStringDrawingOptions)options attributes:(NSDictionary *)attributes context:(NSStringDrawingContext *)context;
 
 @end
 

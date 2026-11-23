@@ -49,6 +49,11 @@ NSOperatingSystemVersion;
 - (NSTimeInterval)systemUptime;
 - (NSOperatingSystemVersion)operatingSystemVersion;
 - (BOOL)isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion)version;
+- (void)disableAutomaticTermination:(NSString *)reason;
+- (void)disableSuddenTermination;
+- (void)enableAutomaticTermination:(NSString *)reason;
+- (void)enableSuddenTermination;
+- (NSString *)userName;
 
 // Activity APIs are used by newer macOS applications to bracket work that
 // should not be interrupted by system sleep or termination.

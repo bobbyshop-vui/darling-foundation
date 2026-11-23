@@ -1,18 +1,48 @@
 #import <Foundation/Foundation.h>
+#import <Foundation/NSGeometry.h>
 
 #if __OBJC2__
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class NSProgress;
+
 typedef void (^NSItemProviderCompletionHandler)(__nullable id <NSSecureCoding> item, NSError * __null_unspecified error);
 typedef void (^NSItemProviderLoadHandler)(__null_unspecified NSItemProviderCompletionHandler completionHandler, __null_unspecified Class expectedValueClass, NSDictionary * __null_unspecified options);
 
+typedef NS_ENUM(NSInteger, NSItemProviderRepresentationVisibility) {
+    NSItemProviderRepresentationVisibilityAll = 0,
+    NSItemProviderRepresentationVisibilityTeam = 1,
+    NSItemProviderRepresentationVisibilityGroup = 2,
+    NSItemProviderRepresentationVisibilityOwnProcess = 3,
+};
+
+@protocol NSItemProviderWriting <NSObject>
++ (NSArray *)writableTypeIdentifiersForItemProvider;
+- (NSProgress *)loadDataWithTypeIdentifier:(NSString *)typeIdentifier forItemProviderCompletionHandler:(void (^)(NSData *data, NSError *error))completionHandler;
+@end
+
+@protocol NSItemProviderReading <NSObject>
++ (NSArray *)readableTypeIdentifiersForItemProvider;
++ (nullable instancetype)objectWithItemProviderData:(NSData *)data typeIdentifier:(NSString *)typeIdentifier error:(NSError **)error;
+@end
+
 NS_CLASS_AVAILABLE(10_10, 8_0)
 @interface NSItemProvider : NSObject <NSCopying>
+{
+    NSMutableArray *_representations;
+}
 
 - (instancetype)initWithItem:(nullable id <NSSecureCoding>)item typeIdentifier:(nullable NSString *)typeIdentifier NS_DESIGNATED_INITIALIZER;
 
 - (nullable instancetype)initWithContentsOfURL:(null_unspecified NSURL *)fileURL;
+
+- (BOOL)canLoadObjectOfClass:(Class<NSItemProviderReading>)aClass;
+- (NSProgress *)loadObjectOfClass:(Class<NSItemProviderReading>)aClass completionHandler:(void (^)(id<NSItemProviderReading> object, NSError *error))completionHandler;
+- (void)registerObjectOfClass:(Class<NSItemProviderWriting>)aClass visibility:(NSItemProviderRepresentationVisibility)visibility loadHandler:(NSProgress * _Nullable (^)(void (^completionHandler)(id<NSItemProviderWriting> object, NSError *error)))loadHandler;
+
+@property(readonly) NSRect containerFrame;
+@property(readonly) NSRect sourceFrame;
 
 - (void)registerItemForTypeIdentifier:(NSString *)typeIdentifier loadHandler:(NSItemProviderLoadHandler)loadHandler;
 

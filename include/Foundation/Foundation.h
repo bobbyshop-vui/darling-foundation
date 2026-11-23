@@ -167,3 +167,35 @@
 #endif
 
 #include <AssertMacros.h>
+#import <Foundation/NSArray+XcodeAdditions.h>
+#import <Foundation/NSBackgroundActivityScheduler.h>
+#import <Foundation/NSBundleResourceRequest.h>
+#import <Foundation/NSCalendar+XcodeAdditions.h>
+#import <Foundation/NSCharacterSet+XcodeAdditions.h>
+#import <Foundation/NSData+XcodeAdditions.h>
+#import <Foundation/NSDate+XcodeAdditions.h>
+#import <Foundation/NSDateComponents+XcodeAdditions.h>
+#import <Foundation/NSDictionary+XcodeAdditions.h>
+#import <Foundation/NSError+XcodeAdditions.h>
+#import <Foundation/NSExtensionItem.h>
+#import <Foundation/NSFileProviderService.h>
+#import <Foundation/NSLocale+XcodeAdditions.h>
+#import <Foundation/NSMessagePortNameServer.h>
+#import <Foundation/NSMutableOrderedSet+XcodeAdditions.h>
+#import <Foundation/NSOrderedSet+XcodeAdditions.h>
+#import <Foundation/NSPersonNameComponents.h>
+#import <Foundation/NSPersonNameComponentsFormatter.h>
+#import <Foundation/NSRunLoop+XcodeAdditions.h>
+#import <Foundation/NSScriptWhoseTest.h>
+#import <Foundation/NSSpecifierTest.h>
+#import <Foundation/NSTimeZone+XcodeAdditions.h>
+#import <Foundation/NSURLProtocol+XcodeAdditions.h>
+#import <Foundation/NSURLRequest+XcodeAdditions.h>
+#import <Foundation/NSURLSession+XcodeAdditions.h>
+#import <Foundation/NSURLSessionConfiguration+XcodeAdditions.h>
+#import <Foundation/NSURLSessionTask+XcodeAdditions.h>
+#import <Foundation/NSURLSessionTaskTransactionMetrics.h>
+#import <Foundation/NSUnitAcceleration.h>
+#import <Foundation/NSUnitPressure.h>
+#import <Foundation/NSUserAutomatorTask.h>
+#import <Foundation/NSUserUnixTask.h>
