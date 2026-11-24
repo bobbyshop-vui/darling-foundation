@@ -342,21 +342,29 @@ static inline NSConcretePointerArray *sharedInitialization(NSConcretePointerArra
 
 - (void)setCount:(NSUInteger)num
 {
-    if (num > capacity)
+    if (num > count)
     {
-        NSUInteger oldCount = count;
-        bzero(&slice.items[oldCount], num - count);
-        count = num;
+        // Growing: the buffer has to be able to hold the new slots (the old code
+        // only zeroed `num - count` bytes and left count > capacity, so later
+        // accesses read and released whatever sat after the buffer).
+        if (num > capacity)
+        {
+            [self arrayGrow:num];
+        }
+        for (NSUInteger index = count; index < num; index++)
+        {
+            slice.clearAt(slice.items + index);
+        }
         needsCompaction = YES;
     }
     else
     {
-        for (NSUInteger index = count; index < num; index++)
+        for (NSUInteger index = num; index < count; index++)
         {
             emptyAtIndex(&slice, index);
         }
-        count = num;
     }
+    count = num;
     mutations++;
 }
 
