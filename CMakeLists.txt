@@ -177,6 +177,9 @@ set(foundation_sources
 	src/NSRegularExpression.m
 	src/NSRunLoop.m
 	src/NSScanner.m
+	src/NSCoding+XcodeAdditions.m
+	src/NSCopying+XcodeAdditions.m
+	src/NSSecureCoding+XcodeAdditions.m
 	src/NSSelfExpression.m
 	src/NSSetExpression.m
 	src/NSSet.m
