@@ -914,7 +914,7 @@ static inline NSUInteger skipSkipSet(NSScanner *self, NSString *s)
 {
     if (string == nil)
     {
-        NSLog(@"NSScanner: nil string argument");
+        // Like Apple's Foundation, a nil string just gives a scanner over an empty string.
         string = @"";
     }
     self = [super init];
