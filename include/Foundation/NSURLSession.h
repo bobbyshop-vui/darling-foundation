@@ -111,7 +111,22 @@ FOUNDATION_EXPORT NSString * const NSURLSessionDownloadTaskResumeData;
 
 @end
 
-@interface NSURLSessionTask : NSObject <NSCopying>
+@interface NSURLSessionTask : NSObject <NSCopying> {
+    NSUInteger _taskIdentifier;
+    NSURLRequest *_originalRequest;
+    NSURLRequest *_currentRequest;
+    NSURLResponse *_response;
+    int64_t _countOfBytesReceived;
+    int64_t _countOfBytesSent;
+    int64_t _countOfBytesExpectedToSend;
+    int64_t _countOfBytesExpectedToReceive;
+    NSString *_taskDescription;
+    NSURLSessionTaskState _state;
+    NSError *_error;
+    void (^_completionHandler)(NSData *data, NSURLResponse *response, NSError *error);
+    NSURLSession *_xcSession;
+    BOOL _xcStarted;
+}
 
 @property (readonly) NSUInteger taskIdentifier;
 @property (readonly, copy) NSURLRequest *originalRequest;

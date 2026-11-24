@@ -37,6 +37,9 @@ static void XCSetState(NSURLSessionTask *task, NSURLSessionTaskState value)
 {
     if (XCGetState(self) == NSURLSessionTaskStateSuspended) {
         XCSetState(self, NSURLSessionTaskStateRunning);
+        if ([self respondsToSelector:@selector(_startLoading)]) {
+            [self performSelector:@selector(_startLoading)];
+        }
     }
 }
 

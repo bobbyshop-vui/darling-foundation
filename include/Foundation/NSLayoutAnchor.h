@@ -20,23 +20,49 @@
 #import <Foundation/Foundation.h>
 
 @class NSLayoutConstraint;
+@class NSLayoutDimension;
 
 @interface NSLayoutAnchor : NSObject
 {
 @protected
-    id _item;
+    id _item; // not retained: the item owns its anchors
     NSString *_name;
     NSInteger _attribute;
 }
 
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
 - (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)constant;
 - (BOOL)hasAmbiguousLayout;
 - (id)item;
 - (NSString *)name;
 @end
 
+// Private: designated initializer, used by AppKit (NSView / NSLayoutGuide) to create anchors.
+// The item is NOT retained. The attribute is an NSLayoutAttribute value.
+@interface NSLayoutAnchor (NSLayoutAnchorPrivate)
+- (instancetype)initWithItem:(id)item attribute:(NSInteger)attribute name:(NSString *)name;
+@end
+
+@interface NSLayoutXAxisAnchor : NSLayoutAnchor
+- (NSLayoutDimension *)anchorWithOffsetToAnchor:(NSLayoutXAxisAnchor *)otherAnchor;
+@end
+
+@interface NSLayoutYAxisAnchor : NSLayoutAnchor
+- (NSLayoutDimension *)anchorWithOffsetToAnchor:(NSLayoutYAxisAnchor *)otherAnchor;
+@end
+
 @interface NSLayoutDimension : NSLayoutAnchor
+- (NSLayoutConstraint *)constraintEqualToConstant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToConstant:(CGFloat)constant;
 - (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier;
 - (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier;
-- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier constant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier constant:(CGFloat)constant;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)multiplier constant:(CGFloat)constant;
 @end

@@ -302,8 +302,28 @@ static inline BOOL _NSFileAccessibleForMode(NSString *path, int mode)
     if (!dirp) {
         if (error)
         {
-            *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:@{
-                NSLocalizedDescriptionKey: [NSString stringWithUTF8String:strerror(errno)]
+            // Like Apple, report a Cocoa error (with the POSIX error underneath);
+            // callers compare against NSFileReadNoSuchFileError (260).
+            int code = errno;
+            NSInteger cocoaCode;
+            switch (code)
+            {
+                case ENOENT:
+                case ENOTDIR:
+                    cocoaCode = 260; // NSFileReadNoSuchFileError
+                    break;
+                case EACCES:
+                case EPERM:
+                    cocoaCode = 257; // NSFileReadNoPermissionError
+                    break;
+                default:
+                    cocoaCode = 256; // NSFileReadUnknownError
+                    break;
+            }
+            NSError *underlying = [NSError errorWithDomain:NSPOSIXErrorDomain code:code userInfo:nil];
+            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:cocoaCode userInfo:@{
+                NSFilePathErrorKey: path ?: @"",
+                NSUnderlyingErrorKey: underlying
             }];
         }
         return;

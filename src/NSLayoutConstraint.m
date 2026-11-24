@@ -2,9 +2,53 @@
 #import <Foundation/NSException.h>
 #import <Foundation/NSCoder.h>
 
-@interface NSLayoutAnchor (NSLayoutAnchorInternal)
-- (instancetype)initWithItem:(id)item attribute:(NSLayoutAttribute)attribute name:(NSString *)name;
-@end
+#import <objc/message.h>
+
+// Foundation cannot import AppKit; talk to views and layout guides dynamically.
+static id layoutItemView(id item)
+{
+    if (item == nil)
+        return nil;
+    if ([item respondsToSelector:@selector(owningView)])
+        return ((id (*)(id, SEL))objc_msgSend)(item, @selector(owningView));
+    return item;
+}
+
+static id layoutItemSuperview(id view)
+{
+    if (view != nil && [view respondsToSelector:@selector(superview)])
+        return ((id (*)(id, SEL))objc_msgSend)(view, @selector(superview));
+    return nil;
+}
+
+static BOOL viewHasConstraint(id view, id constraint)
+{
+    if (![view respondsToSelector:@selector(constraints)])
+        return NO;
+    NSArray *list = ((id (*)(id, SEL))objc_msgSend)(view, @selector(constraints));
+    return [list containsObject:constraint];
+}
+
+// The view a constraint belongs on: the item's view for one item, the nearest common
+// ancestor (a view is its own ancestor) for two.
+static id layoutHostView(NSLayoutConstraint *constraint)
+{
+    id first = layoutItemView([constraint firstItem]);
+    id second = layoutItemView([constraint secondItem]);
+    if (second == nil)
+        return first;
+    if (first == nil)
+        return second;
+    for (id a = first; a != nil; a = layoutItemSuperview(a))
+    {
+        for (id b = second; b != nil; b = layoutItemSuperview(b))
+        {
+            if (a == b)
+                return a;
+        }
+    }
+    return nil;
+}
 
 @implementation NSLayoutConstraint
 
@@ -23,6 +67,7 @@
 
 - (void)dealloc
 {
+    _installedView = nil;
     [_firstItem release];
     [_secondItem release];
     [_identifier release];
@@ -154,6 +199,8 @@
 
 - (BOOL)isActive
 {
+    if (_installedView != nil)
+        return viewHasConstraint(_installedView, self);
     return _active;
 }
 
@@ -193,7 +240,30 @@
 
 - (void)setActive:(BOOL)active
 {
-    _active = active;
+    if (active)
+    {
+        id host = layoutHostView(self);
+        if (host != nil && [host respondsToSelector:@selector(addConstraint:)])
+        {
+            if (!viewHasConstraint(host, self))
+                ((void (*)(id, SEL, id))objc_msgSend)(host, @selector(addConstraint:), self);
+            _installedView = host;
+            _active = YES;
+        }
+        else
+        {
+            // No view to install on yet; remember the request.
+            _active = YES;
+        }
+    }
+    else
+    {
+        id host = _installedView ?: layoutHostView(self);
+        if (host != nil && [host respondsToSelector:@selector(removeConstraint:)] && viewHasConstraint(host, self))
+            ((void (*)(id, SEL, id))objc_msgSend)(host, @selector(removeConstraint:), self);
+        _installedView = nil;
+        _active = NO;
+    }
 }
 
 - (void)setConstant:(CGFloat)constant

@@ -42,6 +42,7 @@ typedef float NSLayoutPriority;
     CGFloat _constant;
     NSLayoutPriority _priority;
     BOOL _active;
+    id _installedView; // weak: the view this constraint was added to by setActive:
     BOOL _shouldBeArchived;
 }
 
