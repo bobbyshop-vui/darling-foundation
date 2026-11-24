@@ -857,8 +857,16 @@ OBJC_PROTOCOL_IMPL_POP
 {
     if (url == nil)
     {
+        // Apple's Foundation returns nil with a "no such file" style error for a nil URL
+        // instead of raising; Xcode relies on that.
         [self release];
-        [NSException raise:NSInvalidArgumentException format:@"cannot create data from nil url"];
+        if (errorPtr != NULL)
+        {
+            *errorPtr = [NSError errorWithDomain:NSCocoaErrorDomain
+                                            code:NSFileReadInvalidFileNameError
+                                        userInfo:[NSDictionary dictionaryWithObject:@"The file name is invalid (nil URL)."
+                                                                             forKey:NSLocalizedDescriptionKey]];
+        }
         return nil;
     }
     if ([url isFileURL])
