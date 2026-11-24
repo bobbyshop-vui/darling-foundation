@@ -368,6 +368,12 @@ SINGLETON_RR()
     }
 }
 
+// Private; Xcode (DVTKit/IDEKit) asks how many disableSuddenTermination calls are outstanding.
+- (NSInteger)_suddenTerminationDisablingCount
+{
+    return suddenTerminationOptOutCounter;
+}
+
 - (void)disableAutomaticTermination:(NSString *)reason
 {
     (void)reason;
