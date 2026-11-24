@@ -9,6 +9,7 @@
 #import <Foundation/NSArray.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSOperation.h>
+#import <Foundation/NSThread.h>
 #import "NSNotificationInternal.h"
 #import <dispatch/dispatch.h>
 #import <pthread.h>
@@ -67,7 +68,16 @@
 
 - (void)postNotification:(NSNotification *)notif
 {
-    if (_queue != nil && _block != NULL)
+    if (_queue != nil && _block != NULL &&
+        ([NSOperationQueue currentQueue] == _queue ||
+         (_queue == [NSOperationQueue mainQueue] && [NSThread isMainThread])))
+    {
+        // Already on the observer's queue: run the block now, like Apple does.
+        // Code relies on this ordering (Xcode's key-binding "will activate"
+        // block must run before the key bindings are applied).
+        _block(notif);
+    }
+    else if (_queue != nil && _block != NULL)
     {
         #warning TODO: Should not copy. If you post an NSNotification, you should get the same object on all listeners, regardless of thread
         // make a copy for now, as recycling needs a bit of reworking

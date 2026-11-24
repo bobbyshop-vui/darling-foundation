@@ -38,8 +38,4 @@ FOUNDATION_EXPORT NSString * const NSExtensionPointName;
 
 @end
 
-/* Undocumented */
-@interface NSExtension : NSObject
-
-@end
-/* End undocumented */
+#import <Foundation/NSExtension.h>

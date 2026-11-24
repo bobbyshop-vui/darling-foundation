@@ -230,6 +230,7 @@ set(foundation_sources
 	src/NSDictionary+XcodeAdditions.m
 	src/NSError+XcodeAdditions.m
 	src/NSExtensionItem.m
+	src/NSExtension.m
 	src/NSFileProviderService.m
 	src/NSFileVersion.m
 	src/NSLocale+XcodeAdditions.m
