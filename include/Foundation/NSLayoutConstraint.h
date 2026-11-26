@@ -29,6 +29,26 @@ enum {
 
 typedef float NSLayoutPriority;
 
+typedef NSUInteger NSLayoutFormatOptions;
+enum {
+    NSLayoutFormatAlignAllLeft = (1 << NSLayoutAttributeLeft),
+    NSLayoutFormatAlignAllRight = (1 << NSLayoutAttributeRight),
+    NSLayoutFormatAlignAllTop = (1 << NSLayoutAttributeTop),
+    NSLayoutFormatAlignAllBottom = (1 << NSLayoutAttributeBottom),
+    NSLayoutFormatAlignAllLeading = (1 << NSLayoutAttributeLeading),
+    NSLayoutFormatAlignAllTrailing = (1 << NSLayoutAttributeTrailing),
+    NSLayoutFormatAlignAllCenterX = (1 << NSLayoutAttributeCenterX),
+    NSLayoutFormatAlignAllCenterY = (1 << NSLayoutAttributeCenterY),
+    NSLayoutFormatAlignAllLastBaseline = (1 << NSLayoutAttributeLastBaseline),
+    NSLayoutFormatAlignAllFirstBaseline = (1 << NSLayoutAttributeFirstBaseline),
+    NSLayoutFormatAlignAllBaseline = NSLayoutFormatAlignAllLastBaseline,
+    NSLayoutFormatAlignmentMask = 0xFFFF,
+    NSLayoutFormatDirectionLeadingToTrailing = 0 << 16,
+    NSLayoutFormatDirectionLeftToRight = 1 << 16,
+    NSLayoutFormatDirectionRightToLeft = 2 << 16,
+    NSLayoutFormatDirectionMask = 0x3 << 16,
+};
+
 @interface NSLayoutConstraint : NSObject <NSCoding>
 {
 @private
@@ -47,6 +67,7 @@ typedef float NSLayoutPriority;
 }
 
 + (void)activateConstraints:(NSArray *)constraints;
++ (NSArray *)constraintsWithVisualFormat:(NSString *)format options:(NSLayoutFormatOptions)opts metrics:(NSDictionary *)metrics views:(NSDictionary *)views;
 + (NSLayoutConstraint *)constraintWithItem:(id)firstItem attribute:(NSLayoutAttribute)firstAttribute relatedBy:(NSLayoutRelation)relation toItem:(id)secondItem attribute:(NSLayoutAttribute)secondAttribute multiplier:(CGFloat)multiplier constant:(CGFloat)constant;
 + (void)deactivateConstraints:(NSArray *)constraints;
 
