@@ -76,15 +76,66 @@ static NSArray *NSExtensionsFromPlugIns(NSArray *plugIns)
 
 - (instancetype)_initWithPKPlugin:(id)plugIn
 {
-    if ((self = [super init]))
+    if ((self = [super init])) {
         _plugIn = [plugIn retain];
+        _uuid = [[NSUUID alloc] init];
+        // There is no pkd keeping per-user elections; extensions that were
+        // found are in use, as built-in extensions are on macOS.
+        _optedIn = YES;
+    }
     return self;
 }
 
 - (void)dealloc
 {
     [_plugIn release];
+    [_uuid release];
     [super dealloc];
+}
+
+- (BOOL)optedIn { return _optedIn; }
+- (void)setOptedIn:(BOOL)optedIn { _optedIn = optedIn; }
+- (void)_setOptedIn:(BOOL)optedIn { _optedIn = optedIn; }
+- (NSInteger)userElection { return _optedIn ? 1 : 2; } // PKUserElectionUse / Ignore
+- (void)setUserElection:(NSInteger)election { _optedIn = (election != 2); }
+- (BOOL)isEnabled { return _optedIn; }
+- (BOOL)_isEnabled { return _optedIn; }
+- (void)_setEnabled:(BOOL)enabled { _optedIn = enabled; }
+
+- (NSString *)extensionPointIdentifier
+{
+    return [[self attributes] objectForKey: @"NSExtensionPointIdentifier"];
+}
+- (NSString *)_extensionPointIdentifier { return [self extensionPointIdentifier]; }
+- (NSUUID *)_uuid { return _uuid; }
+- (NSUUID *)UUID { return _uuid; }
+- (NSArray *)icons { return @[]; }
+- (BOOL)_isSystemExtension { return YES; }
+- (BOOL)_isMarkedNew { return NO; }
+- (pid_t)_plugInProcessIdentifier { return 0; }
+- (pid_t)pidForRequestIdentifier:(NSUUID *)identifier { return 0; }
+
+- (id)objectForInfoDictionaryKey:(NSString *)key
+{
+    return [[self infoDictionary] objectForKey: key];
+}
+
+// Xcode calls more of the private NSExtension API than is implemented here.
+// An unrecognized selector raised inside IDEExtension's locked queue, and the
+// exception handler then hung while holding it, freezing Xcode; answer unknown
+// messages with nil/0 and log them instead.
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+{
+    NSMethodSignature *signature = [super methodSignatureForSelector: aSelector];
+    return signature ? signature : [NSMethodSignature signatureWithObjCTypes: "@@:"];
+}
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation
+{
+    NSLog(@"NSExtension: unimplemented -%@ (returning nil)", NSStringFromSelector([anInvocation selector]));
+    id result = nil;
+    if ([[anInvocation methodSignature] methodReturnLength] <= sizeof(result))
+        [anInvocation setReturnValue: &result];
 }
 
 - (NSString *)identifier { return [_plugIn identifier]; }

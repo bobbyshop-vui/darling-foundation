@@ -8,6 +8,8 @@ NS_ASSUME_NONNULL_BEGIN
 /* Private Apple class: an app extension discovered through PlugInKit. */
 @interface NSExtension : NSObject {
     id _plugIn;
+    NSUUID *_uuid;
+    BOOL _optedIn;
 }
 
 + (nullable NSExtension *)extensionWithIdentifier:(NSString *)identifier error:(NSError **)error;
