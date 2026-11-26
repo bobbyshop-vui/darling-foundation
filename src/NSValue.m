@@ -56,6 +56,18 @@ static NSValue *_NSNewValue(void *value, const char *type);
     NSRequestConcreteImplementation();
 }
 
+- (void)getValue:(void *)value size:(NSUInteger)size
+{
+    NSUInteger valueSize = 0;
+    NSGetSizeAndAlignment([self objCType], &valueSize, NULL);
+    if (size != valueSize)
+    {
+        [NSException raise:NSInvalidArgumentException format:@"-[NSValue getValue:size:]: buffer size %lu does not match the value size %lu", (unsigned long)size, (unsigned long)valueSize];
+        return;
+    }
+    [self getValue:value];
+}
+
 - (const char *)objCType
 {
     NSRequestConcreteImplementation();
