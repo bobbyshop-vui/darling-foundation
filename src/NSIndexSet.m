@@ -232,7 +232,13 @@ static inline void addIndexesInRange(NSIndexSet *self, NSRange range)
         }
         else
         {
-            DL_INSERT(MULTIPLE_RANGE_DATA(self), ptr, newRange);
+            // ptr is the last range starting at or before the new one, so the
+            // new range goes after it (DL_INSERT inserts before its node, and
+            // appends for NULL). Inserting before ptr left ranges out of
+            // order: adding 0, 2 and 5 gave {0, 5, 2}. DL_INSERT evaluates
+            // its node argument repeatedly, so pass a copy of ptr->next.
+            RangeList *following = ptr->next;
+            DL_INSERT(MULTIPLE_RANGE_DATA(self), following, newRange);
         }
         
         [self _mergeOverlappingRangesStartingAtIndex:(ptr ?: MULTIPLE_RANGE_DATA(self))];
@@ -2106,7 +2112,10 @@ static NSIndexSet *__NSEnumerateIndexesMultipleIndexRangesWithNonZeroOptions(NSI
                 second->range.location = end + 1;
                 second->range.length = rangeEnd - end;
                 
-                DL_INSERT(MULTIPLE_RANGE_DATA(self), ptr, second);
+                // The second part follows ptr (DL_INSERT inserts before
+                // its node, and evaluates it repeatedly: pass a copy).
+                RangeList *following = ptr->next;
+                DL_INSERT(MULTIPLE_RANGE_DATA(self), following, second);
                 break;
             }
         }
