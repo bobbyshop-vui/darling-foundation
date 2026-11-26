@@ -314,6 +314,12 @@ os_log_t nsxpc_get_log(void) {
     return xpc_connection_get_pid(_xpcConnection);
 }
 
+// Private API (Xcode's new project flow uses it): the underlying connection.
+- (xpc_connection_t)_xpcConnection
+{
+    return _xpcConnection;
+}
+
 - (uid_t)effectiveUserIdentifier
 {
     return xpc_connection_get_euid(_xpcConnection);
@@ -347,7 +353,9 @@ os_log_t nsxpc_get_log(void) {
 
 - (NSXPCInterface*)exportedInterface {
     @synchronized (_exported) {
-        return [_exported[@1] exportedObject];
+        // (this returned the exported object, so configuring the interface
+        // after setting it, e.g. -setClasses:forSelector:..., hit that object)
+        return [_exported[@1] exportedInterface];
     }
 }
 
@@ -1198,6 +1206,12 @@ static xpc_object_t __NSXPCCONNECTION_IS_CREATING_REPLY__(xpc_object_t original)
 @end
 
 @implementation NSXPCListener
+
+// Private API, like -[NSXPCConnection _xpcConnection].
+- (xpc_connection_t)_xpcConnection
+{
+    return _xpcConnection;
+}
 
 + (instancetype)anonymousListener
 {
