@@ -18,6 +18,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #import <Foundation/NSException.h>
 #import <Foundation/NSURL.h>
 #import <Foundation/NSSet.h>
+#import <Foundation/NSError.h>
+#import <Foundation/FoundationErrors.h>
 #import <Foundation/NSCoder.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <Foundation/NSKeyedUnarchiver.h>
@@ -351,6 +353,26 @@ enum {
 }
 
 
+// Directories and symbolic links write themselves through
+// -writeToFile:atomically:updateFilenames: (actool writes compiled asset
+// catalogs as directory wrappers); regular files write their data directly.
+- (BOOL)   writeToURL: (NSURL *) url
+              options: (NSFileWrapperWritingOptions) options
+  originalContentsURL: (NSURL *) originalContentsURL
+                error: (NSError **) error
+{
+	BOOL result = [url isFileURL] &&
+	              [self writeToFile: [url path]
+	                     atomically: (options & NSFileWrapperWritingAtomic) != 0
+	                updateFilenames: (options & NSFileWrapperWritingWithNameUpdating) != 0];
+	if (!result && error != NULL) {
+		*error = [NSError errorWithDomain: NSCocoaErrorDomain
+		                             code: NSFileWriteUnknownError
+		                         userInfo: url != nil ? [NSDictionary dictionaryWithObject: url forKey: NSURLErrorKey] : nil];
+	}
+	return result;
+}
+
 - (BOOL) needsToBeUpdatedFromPath: (NSString*) path
 {
 	NSDate* changeDateSelf = [[self fileAttributes] fileModificationDate];
@@ -439,7 +461,7 @@ enum {
 	                                             options: (options & NSFileWrapperWritingAtomic) != 0 ? NSDataWritingAtomic : 0
 	                                               error: error];
 	if (result && (options & NSFileWrapperWritingWithNameUpdating) != 0) {
-		[NSException raise: NSInvalidArgumentException format: @"TODO: NSFileWrapperWritingWithNameUpdating"];
+		[self setFilename: [url lastPathComponent]];
 	}
 	return result;
 }

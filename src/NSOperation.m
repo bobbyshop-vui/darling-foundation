@@ -833,24 +833,27 @@ static NSString const *NSOperationQueueKey = @"NSOperationQueue";
         NSLog(@"operation %@ is already scheduled in another queue", op);
         NSOperationQueue *otherQueue = op._internal->_queue;
         //TODO.. if we can't aquire a lock, defer until later.
-        pthread_mutex_lock(&(otherQueue->_queuelock));
+        // KVO notifications go out without the queue lock held: observers
+        // may wait for other threads that need the queue (Xcode's workspace
+        // loading waits for the main thread, which adds operations).
         [otherQueue willChangeValueForKey:@"operationCount"];
         [otherQueue willChangeValueForKey:@"operations"];
+        pthread_mutex_lock(&(otherQueue->_queuelock));
         [otherQueue->_operations removeObjectIdenticalTo:op];
         [otherQueue->_pendingOperations removeObjectIdenticalTo:op];
+        pthread_mutex_unlock(&(otherQueue->_queuelock));
         [otherQueue didChangeValueForKey:@"operations"];
         [otherQueue didChangeValueForKey:@"operationCount"];
-        pthread_mutex_unlock(&(otherQueue->_queuelock));
     }
 
     op._internal->_queue = self;
-    pthread_mutex_lock(&_queuelock);
     [self willChangeValueForKey:@"operationCount"];
     [self willChangeValueForKey:@"operations"];
+    pthread_mutex_lock(&_queuelock);
     [_pendingOperations addObject:op];
+    pthread_mutex_unlock(&_queuelock);
     [self didChangeValueForKey:@"operations"];
     [self didChangeValueForKey:@"operationCount"];
-    pthread_mutex_unlock(&_queuelock);
     [op release];
 
     if ([op isReady] && !_suspended)
@@ -988,13 +991,19 @@ static NSString const *NSOperationQueueKey = @"NSOperationQueue";
     }
     //just incase some takes an operation out of being finished after we queue up doing this.
 
-    pthread_mutex_lock(&_queuelock);
+    // As in -addOperation:, notify without holding the queue lock. The queue
+    // may hold the last reference to the operation: it is released after
+    // the lock, since its -dealloc runs other code (removing KVO observers
+    // waits for other threads).
+    NSOperation *operation = [opi->_operation retain];
     [self willChangeValueForKey:@"operationCount"];
     [self willChangeValueForKey:@"operations"];
-    [_operations removeObjectIdenticalTo:opi->_operation];
+    pthread_mutex_lock(&_queuelock);
+    [_operations removeObjectIdenticalTo:operation];
+    pthread_mutex_unlock(&_queuelock);
     [self didChangeValueForKey:@"operations"];
     [self didChangeValueForKey:@"operationCount"];
-    pthread_mutex_unlock(&_queuelock);
+    [operation release];
     [self _queueSchedulerRun];
 }
 

@@ -514,8 +514,11 @@ id __NSKeyValueRetainedObservationInfoForObject(NSObject *object, NSKeyValueCont
         NSKeyValueChangeDetails changeDetails = {0};
         changeDetails.kind = NSKeyValueChangeSetting;
         changeDetails.newValue = newValue;
-        _NSKeyValueNotifyObserver(observer, self, nil, keyPath, changeDetails, context, NO);
-        [__NSKeyValueObserverRegisterationLock lock];
+        @try {
+            _NSKeyValueNotifyObserver(observer, self, nil, keyPath, changeDetails, context, NO);
+        } @finally {
+            [__NSKeyValueObserverRegisterationLock lock];
+        }
     }
     OSSpinLockLock(&_NSKeyValueObservationInfoCreationSpinLock);
     NSKeyValueObservationInfo *observationInfo = __NSKeyValueRetainedObservationInfoForObject(self, property.containerClass); 
@@ -565,11 +568,17 @@ static void _NSKeyValueNotifyObserver(NSObject *observer, NSObject *observable, 
     ^{
         __NSKeyValueObserverRegisterationLock = [[NSRecursiveLock alloc] init];
     });
+    // The registration lock is always released, also when registering raises
+    // (callers such as Xcode's DVTKit catch KVO exceptions and go on; a lock
+    // left held blocked every other thread's KVO registrations).
     [__NSKeyValueObserverRegisterationLock lock];
-    Class receiverRealClass = object_getClass(self);
-    NSKeyValueProperty *kvProperty = _NSKeyValuePropertyForIsaAndKeyPath(receiverRealClass, keyPath);
-    [self addObserver:observer forProperty:kvProperty options:options context:context];
-    [__NSKeyValueObserverRegisterationLock unlock];
+    @try {
+        Class receiverRealClass = object_getClass(self);
+        NSKeyValueProperty *kvProperty = _NSKeyValuePropertyForIsaAndKeyPath(receiverRealClass, keyPath);
+        [self addObserver:observer forProperty:kvProperty options:options context:context];
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
+    }
 
 
 }
@@ -641,34 +650,41 @@ static void NSKeyValueRaiseUnregistered(NSObject *receiver, NSObject *observer, 
 
 - (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath context:(void *)context
 {
+    // Removing an observer that is not registered raises: release the lock
+    // then too (see -addObserver:forKeyPath:options:context:).
     [__NSKeyValueObserverRegisterationLock lock];
-    NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self), keyPath);
-    NSKeyValueObservationInfo *observationInfo = [self observationInfo];
-    NSArray *observances = [observationInfo observances];
-    NSKeyValueObservance *observance = nil;
-    for (NSKeyValueObservance *ob in observances)
-    {
-        if ([ob.property isEqual:property] && [ob.observer isEqual:observer] && ob.context == context)
+    @try {
+        NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self), keyPath);
+        NSKeyValueObservationInfo *observationInfo = [self observationInfo];
+        NSArray *observances = [observationInfo observances];
+        NSKeyValueObservance *observance = nil;
+        for (NSKeyValueObservance *ob in observances)
         {
-            observance = ob;  
-            break;
+            if ([ob.property isEqual:property] && [ob.observer isEqual:observer] && ob.context == context)
+            {
+                observance = ob;  
+                break;
+            }
         }
+        if (observance == nil)
+        {
+            NSKeyValueRaiseUnregistered(self, observer, keyPath, context);
+        }
+        [self _removeObserver:observer forProperty:property optionalObservance:observance];
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
     }
-    if (observance == nil)
-    {
-        NSKeyValueRaiseUnregistered(self, observer, keyPath, context);
-    }
-    [self _removeObserver:observer forProperty:property optionalObservance:observance];
-    [__NSKeyValueObserverRegisterationLock unlock];
 }
 
 - (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath
 {
     [__NSKeyValueObserverRegisterationLock lock];
-    NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self), keyPath);
-    [self _removeObserver:observer forProperty:property optionalObservance:nil];
-    [__NSKeyValueObserverRegisterationLock unlock];
-
+    @try {
+        NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self), keyPath);
+        [self _removeObserver:observer forProperty:property optionalObservance:nil];
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
+    }
 }
 static NSString *__NSKVOKeyForSelectorSlow(id self, SEL _cmd)
 {
@@ -773,13 +789,16 @@ static void NSKVODeallocate(id self, SEL _cmd)
         return; //early bail. no need to lock if we're just going to unlock immediately
     }
     [__NSKeyValueObserverRegisterationLock lock];
-    while (index != NSNotFound)
-    {
-        NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self[index]), keyPath);
-        [self[index] addObserver:observer forProperty:property options:options context:context];
-        index = [indexes indexGreaterThanIndex:index];
+    @try {
+        while (index != NSNotFound)
+        {
+            NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self[index]), keyPath);
+            [self[index] addObserver:observer forProperty:property options:options context:context];
+            index = [indexes indexGreaterThanIndex:index];
+        }
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
     }
-    [__NSKeyValueObserverRegisterationLock unlock];
 }
 
 - (void)removeObserver:(NSObject *)observer fromObjectsAtIndexes:(NSIndexSet *)indexes forKeyPath:(NSString *)keyPath
@@ -790,13 +809,16 @@ static void NSKVODeallocate(id self, SEL _cmd)
         return;
     }
     [__NSKeyValueObserverRegisterationLock lock];
-    while (index != NSNotFound)
-    {
-        NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self[index]), keyPath);
-        [self[index] _removeObserver:observer forProperty:property optionalObservance:nil]; 
-        index = [indexes indexGreaterThanIndex:index];  // for some reason, this deregisters in the same order as it registers, instead of reverse order. 
+    @try {
+        while (index != NSNotFound)
+        {
+            NSKeyValueProperty *property = _NSKeyValuePropertyForIsaAndKeyPath(object_getClass(self[index]), keyPath);
+            [self[index] _removeObserver:observer forProperty:property optionalObservance:nil]; 
+            index = [indexes indexGreaterThanIndex:index];  // for some reason, this deregisters in the same order as it registers, instead of reverse order. 
+        }
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
     }
-    [__NSKeyValueObserverRegisterationLock unlock];
 }
 
 - (void)removeObserver:(NSObject *)observer fromObjectsAtIndexes:(NSIndexSet *)indexes forKeyPath:(NSString *)keyPath context:(void *)context
@@ -807,12 +829,15 @@ static void NSKVODeallocate(id self, SEL _cmd)
         return;
     }
     [__NSKeyValueObserverRegisterationLock lock];
-    while (index != NSNotFound)
-    {
-        [self[index] removeObserver:observer forKeyPath:keyPath context:context];
-        index = [indexes indexGreaterThanIndex:index];
+    @try {
+        while (index != NSNotFound)
+        {
+            [self[index] removeObserver:observer forKeyPath:keyPath context:context];
+            index = [indexes indexGreaterThanIndex:index];
+        }
+    } @finally {
+        [__NSKeyValueObserverRegisterationLock unlock];
     }
-    [__NSKeyValueObserverRegisterationLock unlock];
 }
 
 @end
