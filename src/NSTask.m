@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -530,16 +531,28 @@ static void waiterCallback(void* info) {
 		if (cStdin != -1) {
 			posix_spawn_file_actions_addclose(&actions, 0);
 			posix_spawn_file_actions_adddup2(&actions, cStdin, 0);
+		} else if (fcntl(0, F_GETFD) != -1) {
+			// not redirected: the child shares ours, as on macOS
+			// (POSIX_SPAWN_CLOEXEC_DEFAULT would close it otherwise)
+			posix_spawn_file_actions_addinherit_np(&actions, 0);
 		}
 
 		if (cStdout != -1) {
 			posix_spawn_file_actions_addclose(&actions, 1);
 			posix_spawn_file_actions_adddup2(&actions, cStdout, 1);
+		} else if (fcntl(1, F_GETFD) != -1) {
+			// not redirected: the child shares ours, as on macOS
+			// (POSIX_SPAWN_CLOEXEC_DEFAULT would close it otherwise)
+			posix_spawn_file_actions_addinherit_np(&actions, 1);
 		}
 
 		if (cStderr != -1) {
 			posix_spawn_file_actions_addclose(&actions, 2);
 			posix_spawn_file_actions_adddup2(&actions, cStderr, 2);
+		} else if (fcntl(2, F_GETFD) != -1) {
+			// not redirected: the child shares ours, as on macOS
+			// (POSIX_SPAWN_CLOEXEC_DEFAULT would close it otherwise)
+			posix_spawn_file_actions_addinherit_np(&actions, 2);
 		}
 
 		if (cwd) {

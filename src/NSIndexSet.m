@@ -6,6 +6,7 @@
 //
 
 #import <stdlib.h>
+#import <string.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSIndexSet.h>
 #import <Foundation/NSException.h>
@@ -111,24 +112,25 @@ static inline void NSIndexSetBuildCache(NSIndexSetCache **cache, RangeList *rang
     RangeList *entry = NULL;
     NSUInteger rangeCount = 0;
     NSUInteger count = 0;
-    NSUInteger capacity = 0;
+    NSUInteger capacity = STACK_SIZE;
     
     DL_FOREACH(ranges, entry)
     {
-        if (rangeCount > STACK_SIZE && values == &stack_values[0])
-        {
-            values = malloc(capacity * sizeof(RangeList *));
-            if (values == NULL)
-            {
-                free(*cache);
-                *cache = NULL;
-                return;
-            }
-        }
-        else if (rangeCount > STACK_SIZE && rangeCount + 1 > capacity)
+        if (rangeCount == capacity)
         {
             capacity *= 2;
-            values = reallocf(values, capacity * sizeof(RangeList *));
+            if (values == &stack_values[0])
+            {
+                values = malloc(capacity * sizeof(RangeList *));
+                if (values != NULL)
+                {
+                    memcpy(values, stack_values, rangeCount * sizeof(RangeList *));
+                }
+            }
+            else
+            {
+                values = reallocf(values, capacity * sizeof(RangeList *));
+            }
             if (values == NULL) // prev values cleaned up by reallocf
             {
                 free(*cache);
@@ -150,6 +152,7 @@ static inline void NSIndexSetBuildCache(NSIndexSetCache **cache, RangeList *rang
     
     (*cache)->ranges = CFArrayCreate(kCFAllocatorDefault, (const void **)values, rangeCount, &callbacks);
     (*cache)->rangeCount = rangeCount;
+    (*cache)->count = count;
     
     if (values != &stack_values[0] && values != NULL)
     {
@@ -533,6 +536,39 @@ static inline CFComparisonResult NSIndexSetCompareEntry(RangeList *r1, RangeList
     {
         return CACHE(self)->rangeCount;
     }
+}
+
+- (NSRange)rangeAtIndex:(NSUInteger)rangeIndex
+{
+    __block NSRange result = NSMakeRange(NSNotFound, 0);
+    __block NSUInteger current = 0;
+    [self enumerateRangesUsingBlock:^(NSRange range, BOOL *stop) {
+        if (current++ == rangeIndex)
+        {
+            result = range;
+            *stop = YES;
+        }
+    }];
+    return result;
+}
+
+- (NSUInteger)_indexOfRangeContainingIndex:(NSUInteger)value
+{
+    __block NSUInteger result = NSNotFound;
+    __block NSUInteger current = 0;
+    [self enumerateRangesUsingBlock:^(NSRange range, BOOL *stop) {
+        if (value < range.location)
+        {
+            *stop = YES;
+        }
+        else if (value - range.location < range.length)
+        {
+            result = current;
+            *stop = YES;
+        }
+        current++;
+    }];
+    return result;
 }
 
 - (NSUInteger)firstIndex

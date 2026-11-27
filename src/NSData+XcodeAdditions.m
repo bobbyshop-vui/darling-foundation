@@ -25,4 +25,20 @@
     return self;
 }
 
+// Swift's Data asks this before it copies the bytes out of an NSData: compact
+// data keeps all of its bytes in one region.
+- (BOOL)_isCompact
+{
+    NSUInteger length = [self length];
+    __block BOOL compact = YES;
+    [self enumerateByteRangesUsingBlock:^(const void *bytes, NSRange byteRange, BOOL *stop) {
+        if (byteRange.length != length)
+        {
+            compact = NO;
+        }
+        *stop = YES;
+    }];
+    return compact;
+}
+
 @end

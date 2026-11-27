@@ -1587,29 +1587,45 @@ static BOOL __NSKeyValueCheckObservationInfoForPendingNotification(NSObject *ori
 
 BOOL _NSKeyValuePopPendingNotificationPerThread(NSObject *observable, NSString *key, NSKeyValueObservance **outObservance, NSKeyValueChangeDetails *outChangeDetails, NSKeyValueForwardingValues *outForwardingValues, id *outKeyOrKeys, NSKVOPopNotificationResult *result)
 {
-    NSInteger cursor = result->pendingNotificationCount;
+    // Observers notified between two pops can change and notify again on this
+    // thread, which adds and removes pending notifications in the same array:
+    // never trust an index or a count kept from before.
+    CFMutableArrayRef pendingNotifications = result->pendingNotifications;
+    NSInteger count = CFArrayGetCount(pendingNotifications);
+    NSInteger cursor = MIN(result->pendingNotificationCount, count);
     if (result->relevantNotification == NULL)
     {
         result->relevantNotificationIndex = cursor;
     }
     else
     {
-        BOOL temp = result->relevantNotification->reserved;
-        CFArrayRemoveValueAtIndex(result->pendingNotifications, result->relevantNotificationIndex);
-        if (temp)
+        NSKVOPendingNotificationInfo *previous = result->relevantNotification;
+        result->relevantNotification = NULL;
+        NSInteger index = result->relevantNotificationIndex;
+        if (index < 0 || index >= count || CFArrayGetValueAtIndex(pendingNotifications, index) != previous)
         {
-            #warning TODO: This return breaks having multiple observers of the same object & key. Work out what it's meant to do!
-            // AFAICT, _NSKeyValuePushPendingNotificationsPerThread is currently always setting reserved to YES.
-            // The second call to this function within the same _NSKeyValueDidChange call would always return NO.
-            // This seems broken as ultimately all NSKVOPendingNotificationInfo objects should get popped.
-            //return NO;
+            index = CFArrayGetLastIndexOfValue(pendingNotifications, CFRangeMake(0, count), previous);
         }
-        cursor = result->relevantNotificationIndex;
+        if (index != kCFNotFound)
+        {
+            CFArrayRemoveValueAtIndex(pendingNotifications, index);
+            count--;
+            cursor = index;
+        }
+        else
+        {
+            // Already taken out by a nested change.
+            cursor = MIN(result->relevantNotificationIndex, count);
+        }
+        result->relevantNotificationIndex = cursor;
+        // The reference taken when it was found: its observance and change
+        // details stayed valid while the observer was being notified.
+        _NSKVOPendingNotificationRelease(NULL, previous);
     }
     BOOL success = NO;
     while (cursor-- > 0)
     {
-        NSKVOPendingNotificationInfo *pendingNotification = (NSKVOPendingNotificationInfo *)CFArrayGetValueAtIndex(result->pendingNotifications, cursor);
+        NSKVOPendingNotificationInfo *pendingNotification = (NSKVOPendingNotificationInfo *)CFArrayGetValueAtIndex(pendingNotifications, cursor);
         if (pendingNotification->recursionLevel < result->recursionLevel)
         {
             // pendingNotification was pushed higher up call chain.
@@ -1627,15 +1643,17 @@ BOOL _NSKeyValuePopPendingNotificationPerThread(NSObject *observable, NSString *
                 *outChangeDetails = pendingNotification->changeDetails;
                 *outKeyOrKeys = key;
                 *outForwardingValues = pendingNotification->forwardingValues;
-                result->relevantNotification = pendingNotification; //this seems unlikely. 
+                result->relevantNotification = (NSKVOPendingNotificationInfo *)_NSKVOPendingNotificationRetain(NULL, pendingNotification);
                 result->relevantNotificationIndex = cursor;
                 success = YES;
                 break;
             }
             else
             {
-                CFArrayRemoveValueAtIndex(result->pendingNotifications, cursor);
-                if (pendingNotification->retainCount == 0)
+                // Read before the removal, which may free it.
+                BOOL lastReference = pendingNotification->retainCount <= 1;
+                CFArrayRemoveValueAtIndex(pendingNotifications, cursor);
+                if (lastReference)
                 {
                     continue;
                 }

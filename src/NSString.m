@@ -14,6 +14,7 @@
 #import <Foundation/NSPortCoder.h>
 #import <Foundation/NSData.h>
 #import <Foundation/NSError.h>
+#import <Foundation/FoundationErrors.h>
 #import <Foundation/NSException.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <Foundation/NSLocale.h>
@@ -808,6 +809,78 @@ SINGLETON_RR()
     return [self initWithBytes:nullTerminatedCString length:strlen(nullTerminatedCString) encoding:encoding];
 }
 
+// The error the contents-of-file and contents-of-URL initializers report when
+// the bytes cannot be read as a string (Apple's codes: 261 for a given
+// encoding, 264 when none could be determined).
+static NSError *_NSStringReadEncodingError(NSInteger code, NSString *locationKey, id location, NSStringEncoding encoding)
+{
+    NSMutableDictionary *userInfo = [NSMutableDictionary dictionary];
+    if (location != nil)
+    {
+        userInfo[locationKey] = location;
+    }
+    if (encoding != 0)
+    {
+        userInfo[NSStringEncodingErrorKey] = @(encoding);
+    }
+    return [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:userInfo];
+}
+
+static BOOL _NSBytesAreValidUTF8(const uint8_t *bytes, NSUInteger length)
+{
+    NSUInteger i = 0;
+    while (i < length)
+    {
+        uint8_t c = bytes[i];
+        if (c < 0x80)
+        {
+            i++;
+            continue;
+        }
+        NSUInteger extra;
+        uint32_t codePoint;
+        if (c >= 0xC2 && c <= 0xDF)
+        {
+            extra = 1;
+            codePoint = c & 0x1F;
+        }
+        else if ((c & 0xF0) == 0xE0)
+        {
+            extra = 2;
+            codePoint = c & 0x0F;
+        }
+        else if (c >= 0xF0 && c <= 0xF4)
+        {
+            extra = 3;
+            codePoint = c & 0x07;
+        }
+        else
+        {
+            return NO;
+        }
+        if (length - i <= extra)
+        {
+            return NO;
+        }
+        for (NSUInteger k = 1; k <= extra; k++)
+        {
+            uint8_t continuation = bytes[i + k];
+            if ((continuation & 0xC0) != 0x80)
+            {
+                return NO;
+            }
+            codePoint = (codePoint << 6) | (continuation & 0x3F);
+        }
+        if ((extra == 2 && codePoint < 0x800) || (extra == 3 && (codePoint < 0x10000 || codePoint > 0x10FFFF)) ||
+            (codePoint >= 0xD800 && codePoint <= 0xDFFF))
+        {
+            return NO;
+        }
+        i += extra + 1;
+    }
+    return YES;
+}
+
 - (id)initWithContentsOfURL:(NSURL *)url encoding:(NSStringEncoding)enc error:(NSError **)error
 {
     if ([url isFileURL])
@@ -822,7 +895,12 @@ SINGLETON_RR()
             [self release];
             return nil;
         }
-        return [self initWithData:data encoding:enc];
+        id string = [self initWithData:data encoding:enc];
+        if (string == nil && error != NULL)
+        {
+            *error = _NSStringReadEncodingError(NSFileReadInapplicableStringEncodingError, NSURLErrorKey, url, enc);
+        }
+        return string;
     }
 }
 
@@ -835,7 +913,12 @@ SINGLETON_RR()
         [self release];
         return nil;
     }
-    return [self initWithBytesNoCopy:bytes length:length encoding:enc freeWhenDone:YES];
+    id string = [self initWithBytesNoCopy:bytes length:length encoding:enc freeWhenDone:YES];
+    if (string == nil && error != NULL)
+    {
+        *error = _NSStringReadEncodingError(NSFileReadInapplicableStringEncodingError, NSFilePathErrorKey, path, enc);
+    }
+    return string;
 }
 
 - (id)_initWithBytesOfUnknownEncoding:(void *)bytes length:(NSUInteger)length copy:(BOOL)shouldCopy usedEncoding:(NSStringEncoding *)usedEncoding
@@ -846,6 +929,12 @@ SINGLETON_RR()
     {
         memcpy(&BOM, bytes, 4);
         _NSDetectEncodingFromBOM(BOM, &encoding, NULL);
+    }
+
+    // Most text is UTF-8 (an empty file too): no need to guess.
+    if (encoding == 0 && _NSBytesAreValidUTF8(bytes, length))
+    {
+        encoding = NSUTF8StringEncoding;
     }
 
     if (encoding == 0)
@@ -1001,7 +1090,12 @@ SINGLETON_RR()
             [self release];
             return nil;
         }
-        return [self _initWithBytesOfUnknownEncoding:bytes length:length copy:NO usedEncoding:enc];
+        id string = [self _initWithBytesOfUnknownEncoding:bytes length:length copy:NO usedEncoding:enc];
+        if (string == nil && error != NULL)
+        {
+            *error = _NSStringReadEncodingError(NSFileReadUnknownStringEncodingError, NSURLErrorKey, url, 0);
+        }
+        return string;
     }
     else
     {
@@ -1011,7 +1105,12 @@ SINGLETON_RR()
             [self release];
             return nil;
         }
-        return [self _initWithBytesOfUnknownEncoding:(void *)[data bytes] length:[data length] copy:YES usedEncoding:enc];
+        id string = [self _initWithBytesOfUnknownEncoding:(void *)[data bytes] length:[data length] copy:YES usedEncoding:enc];
+        if (string == nil && error != NULL)
+        {
+            *error = _NSStringReadEncodingError(NSFileReadUnknownStringEncodingError, NSURLErrorKey, url, 0);
+        }
+        return string;
     }
 }
 
@@ -1024,7 +1123,12 @@ SINGLETON_RR()
         [self release];
         return nil;
     }
-    return [self _initWithBytesOfUnknownEncoding:bytes length:length copy:NO usedEncoding:enc];
+    id string = [self _initWithBytesOfUnknownEncoding:bytes length:length copy:NO usedEncoding:enc];
+    if (string == nil && error != NULL)
+    {
+        *error = _NSStringReadEncodingError(NSFileReadUnknownStringEncodingError, NSFilePathErrorKey, path, 0);
+    }
+    return string;
 }
 
 - (void)getCharacters:(unichar *)buffer range:(NSRange)aRange
