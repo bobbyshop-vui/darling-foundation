@@ -632,10 +632,14 @@ static id _decodeObjectBinary(NSKeyedUnarchiver *unarchiver, NSUInteger uid1) NS
                 instance = allocated;
             }
 
-            id delegateRes = [unarchiver->_delegate unarchiver: unarchiver didDecodeObject: instance];
-            if (delegateRes != nil)
+            // The delegate methods are optional.
+            if ([unarchiver->_delegate respondsToSelector: @selector(unarchiver:didDecodeObject:)])
             {
-                instance = delegateRes;
+                id delegateRes = [unarchiver->_delegate unarchiver: unarchiver didDecodeObject: instance];
+                if (delegateRes != nil)
+                {
+                    instance = delegateRes;
+                }
             }
 
             // now that we have the actual instance, retain it by putting it into the proper map
@@ -790,10 +794,13 @@ static id _decodeObjectXML(NSKeyedUnarchiver *unarchiver, NSString *key)
         //     }
         // }
 
-        id delegateRes = [unarchiver->_delegate unarchiver: unarchiver didDecodeObject: instance];
-        if (delegateRes != nil)
+        if ([unarchiver->_delegate respondsToSelector: @selector(unarchiver:didDecodeObject:)])
         {
-            instance = delegateRes;
+            id delegateRes = [unarchiver->_delegate unarchiver: unarchiver didDecodeObject: instance];
+            if (delegateRes != nil)
+            {
+                instance = delegateRes;
+            }
         }
         CFDictionarySetValue(unarchiver->_objRefMap, (const void *)instance, (const void *)uid);
         CFDictionarySetValue(unarchiver->_refObjMap, (const void *)uid, instance);
@@ -1887,7 +1894,10 @@ static CFDictionaryValueCallBacks sNSCFDictionaryValueCallBacks = {
 
 - (void)replaceObject:(id)obj withObject:(id)replacement
 {
-    [_delegate unarchiver: self willReplaceObject: obj withObject: replacement];
+    if ([_delegate respondsToSelector: @selector(unarchiver:willReplaceObject:withObject:)])
+    {
+        [_delegate unarchiver: self willReplaceObject: obj withObject: replacement];
+    }
     if (obj != replacement)
     {
         const void *uid = CFDictionaryGetValue(_objRefMap, obj);

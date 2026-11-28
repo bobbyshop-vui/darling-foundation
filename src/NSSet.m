@@ -234,14 +234,34 @@ OBJC_PROTOCOL_IMPL_POP
 
 - (id)valueForKey:(id)key
 {
+    // "@key" is a key of the set itself (@"@count", say).
+    if ([key length] > 0 && [key characterAtIndex:0] == '@')
+    {
+        return [super valueForKey:[key substringFromIndex:1]];
+    }
     NSMutableSet *resultSet = [NSMutableSet set];
     NSEnumerator *enumerator = [self objectEnumerator];
     id anObj = nil;
     while ((anObj = [enumerator nextObject]))
     {
-        [resultSet addObject:[anObj valueForKey:key]];
+        // Unlike NSArray, a set leaves out the nil results.
+        id value = [anObj valueForKey:key];
+        if (value != nil)
+        {
+            [resultSet addObject:value];
+        }
     }
     return resultSet;
+}
+
+- (void)setValue:(id)value forKey:(NSString *)key
+{
+    NSEnumerator *enumerator = [self objectEnumerator];
+    id anObj = nil;
+    while ((anObj = [enumerator nextObject]))
+    {
+        [anObj setValue:value forKey:key];
+    }
 }
 
 - (id)valueForKeyPath:(id)aKeyPath

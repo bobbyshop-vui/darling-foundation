@@ -6,6 +6,7 @@
 //
 
 #import <Foundation/NSArray.h>
+#import <Foundation/NSNull.h>
 #import <Foundation/NSString.h>
 #import "NSCoderInternal.h"
 #import <Foundation/NSException.h>
@@ -207,14 +208,31 @@ OBJC_PROTOCOL_IMPL_POP
 
 - (id)valueForKey:(id)key
 {
-    NSMutableArray *resultArray = [NSMutableArray array];
+    // "@key" is a key of the array itself (@"@count", say).
+    if ([key length] > 0 && [key characterAtIndex:0] == '@')
+    {
+        return [super valueForKey:[key substringFromIndex:1]];
+    }
+    NSMutableArray *resultArray = [NSMutableArray arrayWithCapacity:[self count]];
     NSEnumerator *enumerator = [self objectEnumerator];
     id anObj = nil;
     while ((anObj = [enumerator nextObject]))
     {
-        [resultArray addObject:[anObj valueForKey:key]];
+        id value = [anObj valueForKey:key];
+        [resultArray addObject:value != nil ? value : [NSNull null]];
     }
     return resultArray;
+}
+
+- (void)setValue:(id)value forKey:(NSString *)key
+{
+    // Set it on every element, as AppKit's bindings and Xcode expect.
+    NSEnumerator *enumerator = [self objectEnumerator];
+    id anObj = nil;
+    while ((anObj = [enumerator nextObject]))
+    {
+        [anObj setValue:value forKey:key];
+    }
 }
 
 - (id)_distinctUnionOfObjectsForKeyPath:(id)keyPath
